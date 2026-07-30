@@ -1,0 +1,90 @@
+import { useCallback, useEffect, useState } from "react";
+import { store, type CartLine, type Product, type Settings, type Order } from "@/lib/shop";
+
+function useStoreValue<T>(getter: () => T) {
+  const [value, setValue] = useState<T>(getter);
+  useEffect(() => {
+    const sync = () => setValue(getter());
+    sync();
+    window.addEventListener("dawaiin:store", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("dawaiin:store", sync);
+      window.removeEventListener("storage", sync);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return value;
+}
+
+export function useProducts() {
+  const products = useStoreValue<Product[]>(store.getProducts);
+  return { products, setProducts: store.setProducts };
+}
+
+export function useSettings() {
+  const settings = useStoreValue<Settings>(store.getSettings);
+  return { settings, setSettings: store.setSettings };
+}
+
+export function useOrders() {
+  const orders = useStoreValue<Order[]>(store.getOrders);
+  return { orders, setOrders: store.setOrders };
+}
+
+export function useCart() {
+  const lines = useStoreValue<CartLine[]>(store.getCart);
+
+  const add = useCallback((id: string, qty = 1) => {
+    const current = store.getCart();
+    const found = current.find((l) => l.id === id);
+    store.setCart(
+      found
+        ? current.map((l) => (l.id === id ? { ...l, qty: l.qty + qty } : l))
+        : [...current, { id, qty }],
+    );
+  }, []);
+
+  const setQty = useCallback((id: string, qty: number) => {
+    const current = store.getCart();
+    store.setCart(
+      qty <= 0 ? current.filter((l) => l.id !== id) : current.map((l) => (l.id === id ? { ...l, qty } : l)),
+    );
+  }, []);
+
+  const remove = useCallback((id: string) => setQty(id, 0), [setQty]);
+  const clear = useCallback(() => store.setCart([]), []);
+
+  const count = lines.reduce((s, l) => s + l.qty, 0);
+  return { lines, add, setQty, remove, clear, count };
+}
+
+export function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>(".reveal");
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in-view");
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
+export function useParallax() {
+  const [y, setY] = useState(0);
+  useEffect(() => {
+    const onScroll = () => setY(window.scrollY);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return y;
+}
