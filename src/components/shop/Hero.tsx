@@ -25,7 +25,7 @@ export function Hero() {
           className="max-w-2xl"
           style={{ transform: `translate3d(0, ${y * -0.06}px, 0)`, opacity: Math.max(0, 1 - y / 620) }}
         >
-          <p className="eyebrow">Kerala sourced · Vaidya formulated · Small batch</p>
+          <p className="eyebrow"></p>
           <h1 className="mt-6 font-display text-5xl leading-[1.02] sm:text-7xl">
             The quiet science of <span className="text-gradient-leaf">healing</span>, bottled with care.
           </h1>

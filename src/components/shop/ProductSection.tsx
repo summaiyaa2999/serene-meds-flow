@@ -73,10 +73,8 @@ export function ProductSection() {
     <section id="shop" className="relative mx-auto max-w-7xl px-5 py-24 sm:px-6 sm:py-32">
       <div className="reveal max-w-2xl">
         <p className="eyebrow">The apothecary</p>
-        <h2 className="mt-4 font-display text-4xl sm:text-5xl">Every remedy, one scroll away</h2>
+        <h2 className="mt-4 font-display text-4xl sm:text-5xl">Pure remedies rooted in Ayurveda and Unani traditions.</h2>
         <p className="mt-4 text-muted-foreground">
-          Classical formulations prepared in small batches. Add what you need — checkout takes under
-          a minute with online payment or cash on delivery.
         </p>
       </div>
 
