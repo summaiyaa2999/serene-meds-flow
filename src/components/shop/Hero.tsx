@@ -25,8 +25,7 @@ export function Hero() {
           className="max-w-2xl"
           style={{ transform: `translate3d(0, ${y * -0.06}px, 0)`, opacity: Math.max(0, 1 - y / 620) }}
         >
-          <p className="eyebrow"></p>
-          <h1 className="mt-6 font-display text-5xl leading-[1.02] sm:text-7xl">
+          <h1 className="font-display text-5xl leading-[1.02] sm:text-7xl">
             The quiet science of <span className="text-gradient-leaf">healing</span>, bottled with care.
           </h1>
           <div className="mt-6 space-y-4 max-w-xl text-base leading-relaxed text-foreground/75 sm:text-lg">
@@ -51,7 +50,7 @@ export function Hero() {
             </Button>
           </div>
 
-          <div className="mt-14 grid max-w-lg grid-cols-3 gap-3">
+          <div className="mt-12 grid max-w-lg grid-cols-3 gap-3">
             {[
               { k: "45+", v: "Years of practice" },
               { k: "100%", v: "Natural ingredients" },
