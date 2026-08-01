@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { store, type CartLine, type Product, type Settings, type Order } from "@/lib/shop";
+import { store, type CartLine, type Settings, type Order } from "@/lib/shop";
 
 function useStoreValue<T>(getter: () => T) {
   const [value, setValue] = useState<T>(getter);
@@ -17,10 +17,6 @@ function useStoreValue<T>(getter: () => T) {
   return value;
 }
 
-export function useProducts() {
-  const products = useStoreValue<Product[]>(store.getProducts);
-  return { products, setProducts: store.setProducts };
-}
 
 export function useSettings() {
   const settings = useStoreValue<Settings>(store.getSettings);
