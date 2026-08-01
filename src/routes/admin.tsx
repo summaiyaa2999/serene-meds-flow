@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Printer, MessageCircle, Trash2, Plus, Save, Lock } from "lucide-react";
+import { Printer, MessageCircle, Trash2, Plus, Save, Lock, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useOrders, useProducts, useSettings } from "@/hooks/use-shop";
+import { useOrders, useSettings } from "@/hooks/use-shop";
+import { useProducts } from "@/hooks/use-products";
+import { supabase } from "@/integrations/supabase/client";
 import { buildOrderMessage, inr, whatsappLink, type Product, type Order } from "@/lib/shop";
 
 export const Route = createFileRoute("/admin")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Admin Panel — Dawaiin Ayurvedic Apothecary" },
@@ -53,49 +56,182 @@ function printSlip(order: Order) {
   w.print();
 }
 
-const BLANK: Product = {
-  id: "",
+type Draft = {
+  name: string;
+  sanskrit: string;
+  category: string;
+  price: string;
+  mrp: string;
+  pack: string;
+  description: string;
+  imageUrl: string;
+};
+
+const BLANK: Draft = {
   name: "",
-  category: "Classical Churna",
-  price: 0,
+  sanskrit: "",
+  category: "General",
+  price: "",
+  mrp: "",
   pack: "",
   description: "",
-  inStock: true,
+  imageUrl: "",
 };
+
+function AuthGate({ onReady }: { onReady: () => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  async function submit() {
+    setBusy(true);
+    const fn =
+      mode === "signin"
+        ? supabase.auth.signInWithPassword({ email, password })
+        : supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: `${window.location.origin}/admin` },
+          });
+    const { data, error } = await fn;
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    if (mode === "signup" && !data.session) {
+      return toast.success("Account created — check your email to confirm, then sign in.");
+    }
+    onReady();
+  }
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-cream px-5">
+      <div className="glass w-full max-w-sm rounded-3xl p-8 text-center">
+        <Lock className="mx-auto h-6 w-6 text-primary" />
+        <h1 className="mt-4 font-display text-3xl">Admin access</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {mode === "signin" ? "Sign in to manage the store." : "Create the store admin account."}
+        </p>
+        <Input
+          type="email"
+          placeholder="Email"
+          className="mt-6"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input
+          type="password"
+          placeholder="Password"
+          className="mt-3"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void submit()}
+        />
+        <Button className="mt-4 w-full rounded-full" disabled={busy} onClick={() => void submit()}>
+          {mode === "signin" ? "Sign in" : "Create account"}
+        </Button>
+        <button
+          className="mt-4 block w-full text-xs uppercase tracking-widest text-muted-foreground"
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+        >
+          {mode === "signin" ? "Create admin account" : "I already have an account"}
+        </button>
+        <Link to="/" className="mt-4 block text-xs uppercase tracking-widest text-muted-foreground">
+          Back to store
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function Admin() {
   const { settings, setSettings } = useSettings();
-  const { products, setProducts } = useProducts();
+  const { products, refresh, loading } = useProducts();
   const { orders, setOrders } = useOrders();
-  const [pin, setPin] = useState("");
-  const [authed, setAuthed] = useState(false);
-  const [draft, setDraft] = useState<Product>(BLANK);
+  const [draft, setDraft] = useState<Draft>(BLANK);
   const [form, setForm] = useState(settings);
+  const [status, setStatus] = useState<"loading" | "out" | "notadmin" | "in">("loading");
 
-  if (!authed) {
+  const check = useCallback(async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return setStatus("out");
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.user.id)
+      .eq("role", "admin");
+    setStatus(roles && roles.length > 0 ? "in" : "notadmin");
+  }, []);
+
+  useEffect(() => {
+    void check();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => void check());
+    return () => sub.subscription.unsubscribe();
+  }, [check]);
+
+  useEffect(() => setForm(settings), [settings]);
+
+  async function addProduct() {
+    if (!draft.name.trim() || !draft.price) return toast.error("Name and price are required");
+    const { error } = await supabase.from("products").insert({
+      name: draft.name.trim(),
+      sanskrit: draft.sanskrit.trim() || null,
+      category: draft.category.trim() || "General",
+      price: Number(draft.price),
+      mrp: draft.mrp ? Number(draft.mrp) : null,
+      pack: draft.pack.trim(),
+      description: draft.description.trim(),
+      image_url: draft.imageUrl.trim() || null,
+    });
+    if (error) return toast.error(error.message);
+    setDraft(BLANK);
+    await refresh();
+    toast.success("Product added");
+  }
+
+  type ProductPatch = {
+    name?: string;
+    category?: string;
+    pack?: string;
+    description?: string;
+    price?: number;
+    image_url?: string | null;
+    in_stock?: boolean;
+  };
+
+  async function updateProduct(id: string, patch: ProductPatch) {
+    const { error } = await supabase.from("products").update(patch).eq("id", id);
+    if (error) return toast.error(error.message);
+    await refresh();
+  }
+
+  async function deleteProduct(id: string) {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    await refresh();
+    toast.success("Product deleted");
+  }
+
+  if (status === "loading") {
+    return <div className="grid min-h-screen place-items-center bg-cream text-muted-foreground">Loading…</div>;
+  }
+
+  if (status === "out") return <AuthGate onReady={() => void check()} />;
+
+  if (status === "notadmin") {
     return (
-      <div className="grid min-h-screen place-items-center bg-cream px-5">
-        <div className="glass w-full max-w-sm rounded-3xl p-8 text-center">
-          <Lock className="mx-auto h-6 w-6 text-primary" />
-          <h1 className="mt-4 font-display text-3xl">Admin access</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Enter your store PIN to continue.</p>
-          <Input
-            type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && setAuthed(pin === settings.adminPin)}
-            className="mt-6 text-center"
-            placeholder="••••"
-          />
+      <div className="grid min-h-screen place-items-center bg-cream px-5 text-center">
+        <div className="glass max-w-sm rounded-3xl p-8">
+          <h1 className="font-display text-3xl">No admin access</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This account is not an administrator of the store.
+          </p>
           <Button
-            className="mt-4 w-full rounded-full"
-            onClick={() => (pin === settings.adminPin ? setAuthed(true) : toast.error("Incorrect PIN"))}
+            variant="outline"
+            className="mt-6 rounded-full"
+            onClick={() => void supabase.auth.signOut()}
           >
-            Unlock
+            Sign out
           </Button>
-          <Link to="/" className="mt-5 block text-xs uppercase tracking-widest text-muted-foreground">
-            Back to store
-          </Link>
         </div>
       </div>
     );
@@ -109,19 +245,125 @@ function Admin() {
             <p className="eyebrow">Dawaiin control room</p>
             <h1 className="truncate font-display text-2xl">Admin panel</h1>
           </div>
-          <Button asChild variant="outline" className="rounded-full">
-            <Link to="/">View store</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" className="rounded-full">
+              <Link to="/">View store</Link>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => void supabase.auth.signOut()} aria-label="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
-        <Tabs defaultValue="orders">
+        <Tabs defaultValue="products">
           <TabsList className="rounded-full">
-            <TabsTrigger value="orders" className="rounded-full">Orders ({orders.length})</TabsTrigger>
             <TabsTrigger value="products" className="rounded-full">Products ({products.length})</TabsTrigger>
+            <TabsTrigger value="orders" className="rounded-full">Orders ({orders.length})</TabsTrigger>
             <TabsTrigger value="settings" className="rounded-full">Settings</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="products" className="mt-6 grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+            <div className="h-fit rounded-3xl border bg-card p-6">
+              <h2 className="font-display text-2xl">Add a medicine</h2>
+              <div className="mt-4 space-y-3">
+                <div><Label>Name</Label><Input className="mt-1" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
+                <div><Label>Other / local name</Label><Input className="mt-1" value={draft.sanskrit} onChange={(e) => setDraft({ ...draft, sanskrit: e.target.value })} /></div>
+                <div><Label>Category</Label><Input className="mt-1" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Price (₹)</Label><Input type="number" className="mt-1" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} /></div>
+                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={draft.mrp} onChange={(e) => setDraft({ ...draft, mrp: e.target.value })} /></div>
+                </div>
+                <div><Label>Pack</Label><Input className="mt-1" placeholder="100 g / 60 tablets" value={draft.pack} onChange={(e) => setDraft({ ...draft, pack: e.target.value })} /></div>
+                <div><Label>Image URL</Label><Input className="mt-1" placeholder="https://…" value={draft.imageUrl} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })} /></div>
+                <div><Label>Description</Label><Textarea rows={3} className="mt-1" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></div>
+                <Button className="w-full rounded-full" onClick={() => void addProduct()}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Add product
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">{loading ? "Loading…" : `${products.length} medicines`}</p>
+                <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void refresh()}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
+                </Button>
+              </div>
+              {products.length === 0 && !loading && (
+                <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+                  No medicines yet. Add your first one on the left.
+                </p>
+              )}
+              {products.map((p: Product) => (
+                <div key={p.id} className="rounded-2xl border bg-card p-4">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                    <div className="min-w-0">
+                      <Input
+                        className="h-9 font-medium"
+                        defaultValue={p.name}
+                        onBlur={(e) => e.target.value !== p.name && void updateProduct(p.id, { name: e.target.value })}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">{p.category} · {p.pack || "—"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Input
+                        type="number"
+                        className="h-9 w-24"
+                        defaultValue={p.price}
+                        onBlur={(e) =>
+                          Number(e.target.value) !== p.price && void updateProduct(p.id, { price: Number(e.target.value) })
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant={p.inStock ? "secondary" : "outline"}
+                        className="rounded-full"
+                        onClick={() => void updateProduct(p.id, { in_stock: !p.inStock })}
+                      >
+                        {p.inStock ? "In stock" : "Sold out"}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void deleteProduct(p.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Input
+                      className="h-9"
+                      placeholder="Category"
+                      defaultValue={p.category}
+                      onBlur={(e) => e.target.value !== p.category && void updateProduct(p.id, { category: e.target.value })}
+                    />
+                    <Input
+                      className="h-9"
+                      placeholder="Pack"
+                      defaultValue={p.pack}
+                      onBlur={(e) => e.target.value !== p.pack && void updateProduct(p.id, { pack: e.target.value })}
+                    />
+                    <Input
+                      className="h-9 sm:col-span-2"
+                      placeholder="Image URL"
+                      defaultValue={p.imageUrl ?? ""}
+                      onBlur={(e) =>
+                        e.target.value !== (p.imageUrl ?? "") && void updateProduct(p.id, { image_url: e.target.value || null })
+                      }
+                    />
+                    <Textarea
+                      rows={2}
+                      className="sm:col-span-2"
+                      placeholder="Description"
+                      defaultValue={p.description}
+                      onBlur={(e) =>
+                        e.target.value !== p.description && void updateProduct(p.id, { description: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
 
           <TabsContent value="orders" className="mt-6 space-y-4">
             {orders.length === 0 && <p className="text-muted-foreground">No orders yet.</p>}
@@ -201,69 +443,6 @@ function Admin() {
             ))}
           </TabsContent>
 
-          <TabsContent value="products" className="mt-6 grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-            <div className="rounded-3xl border bg-card p-6">
-              <h2 className="font-display text-2xl">Add a medicine</h2>
-              <div className="mt-4 space-y-3">
-                <div><Label>Name</Label><Input className="mt-1" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
-                <div><Label>Category</Label><Input className="mt-1" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Price (₹)</Label><Input type="number" className="mt-1" value={draft.price || ""} onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })} /></div>
-                  <div><Label>Pack</Label><Input className="mt-1" value={draft.pack} onChange={(e) => setDraft({ ...draft, pack: e.target.value })} /></div>
-                </div>
-                <div><Label>Description</Label><Textarea rows={3} className="mt-1" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></div>
-                <Button
-                  className="w-full rounded-full"
-                  onClick={() => {
-                    if (!draft.name || !draft.price) return toast.error("Name and price are required");
-                    setProducts([{ ...draft, id: "p" + Date.now() }, ...products]);
-                    setDraft(BLANK);
-                    toast.success("Product added");
-                  }}
-                >
-                  <Plus className="mr-1.5 h-4 w-4" /> Add product
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {products.map((p) => (
-                <div key={p.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-2xl border bg-card p-4">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.category} · {p.pack}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Input
-                      type="number"
-                      className="h-9 w-24"
-                      value={p.price}
-                      onChange={(e) =>
-                        setProducts(products.map((x) => (x.id === p.id ? { ...x, price: Number(e.target.value) } : x)))
-                      }
-                    />
-                    <Button
-                      size="sm"
-                      variant={p.inStock ? "secondary" : "outline"}
-                      className="rounded-full"
-                      onClick={() => setProducts(products.map((x) => (x.id === p.id ? { ...x, inStock: !x.inStock } : x)))}
-                    >
-                      {p.inStock ? "In stock" : "Sold out"}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => setProducts(products.filter((x) => x.id !== p.id))}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
           <TabsContent value="settings" className="mt-6">
             <div className="max-w-xl space-y-4 rounded-3xl border bg-card p-6">
               <div>
@@ -280,10 +459,6 @@ function Admin() {
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Shipping fee (₹)</Label><Input type="number" className="mt-1" value={form.shippingFee} onChange={(e) => setForm({ ...form, shippingFee: Number(e.target.value) })} /></div>
                 <div><Label>Free shipping above (₹)</Label><Input type="number" className="mt-1" value={form.freeShippingAbove} onChange={(e) => setForm({ ...form, freeShippingAbove: Number(e.target.value) })} /></div>
-              </div>
-              <div>
-                <Label>Admin PIN</Label>
-                <Input className="mt-1" value={form.adminPin} onChange={(e) => setForm({ ...form, adminPin: e.target.value })} />
               </div>
               <Button className="rounded-full" onClick={() => { setSettings(form); toast.success("Settings saved"); }}>
                 <Save className="mr-1.5 h-4 w-4" /> Save settings

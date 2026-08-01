@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useCart, useProducts, useSettings, useOrders } from "@/hooks/use-shop";
+import { useCart, useSettings, useOrders } from "@/hooks/use-shop";
+import { useProducts } from "@/hooks/use-products";
+
 import { buildOrderMessage, inr, whatsappLink, type Customer, type Order } from "@/lib/shop";
 import { payWithRazorpay } from "@/lib/razorpay";
 
