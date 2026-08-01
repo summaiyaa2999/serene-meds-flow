@@ -45,12 +45,12 @@ export function AboutSection() {
             {[
               { icon: Leaf, t: "Pure herbs", d: "No fillers, no artificial colour" },
               { icon: ShieldCheck, t: "Lab tested", d: "Every batch, every time" },
-              { icon: Truck, t: "Fast dispatch", d: "Shipped within 24 hours" },
+              { icon: Truck, t: "Fast dispatch", d: "Shipped within 48 hours" },
             ].map((f) => (
               <div key={f.t} className="rounded-2xl border bg-card p-5">
                 <f.icon className="h-5 w-5 text-primary" />
                 <p className="mt-3 font-medium">{f.t}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Shipped within 48 hours</p>
+                <p className="mt-1 text-xs text-muted-foreground">{f.d}</p>
               </div>
             ))}
           </div>
