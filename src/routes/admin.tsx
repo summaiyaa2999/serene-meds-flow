@@ -188,7 +188,17 @@ function Admin() {
     toast.success("Product added");
   }
 
-  async function updateProduct(id: string, patch: Record<string, unknown>) {
+  type ProductPatch = {
+    name?: string;
+    category?: string;
+    pack?: string;
+    description?: string;
+    price?: number;
+    image_url?: string | null;
+    in_stock?: boolean;
+  };
+
+  async function updateProduct(id: string, patch: ProductPatch) {
     const { error } = await supabase.from("products").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
     await refresh();
