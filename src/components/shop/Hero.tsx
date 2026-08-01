@@ -29,10 +29,17 @@ export function Hero() {
           <h1 className="mt-6 font-display text-5xl leading-[1.02] sm:text-7xl">
             The quiet science of <span className="text-gradient-leaf">healing</span>, bottled with care.
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-foreground/75 sm:text-lg">
-            Dawaiin brings you classical Ayurvedic churnas, vatis, arishtas and taila — prepared
-            the traditional way, tested in modern labs, and delivered to your door across India.
-          </p>
+          <div className="mt-6 space-y-4 max-w-xl text-base leading-relaxed text-foreground/75 sm:text-lg">
+            <p>
+              Dawaiin is an initiative to provide Ayurvedic, Unani and Desi medicine at discounted rates directly to home for the treatment of patients.
+            </p>
+            <p>
+              We are committed to provide genuine medicine at a wider range.
+            </p>
+            <p>
+              Dawaiin is providing option of getting same medicine from different companies for selection.
+            </p>
+          </div>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Button asChild size="lg" className="rounded-full px-8 shadow-[var(--shadow-lift)]">
               <a href="#shop">
