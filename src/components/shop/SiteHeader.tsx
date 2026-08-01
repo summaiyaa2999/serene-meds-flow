@@ -30,10 +30,10 @@ export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
       <div className="hidden bg-primary/95 py-2 text-primary-foreground sm:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6">
           <p className="eyebrow text-primary-foreground/80">
-            Since 1978 · Classical Ayurveda, ethically sourced
+            · CLASSICAL MEDICINE, ETHICALLY SOURCED
           </p>
           <p className="eyebrow text-primary-foreground/80">
-            Free delivery above ₹{settings.freeShippingAbove} · GMP certified
+            FREE DELIVERY ABOVE ₹499 
           </p>
         </div>
       </div>
