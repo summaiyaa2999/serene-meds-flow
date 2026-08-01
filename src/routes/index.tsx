@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/shop/SiteHeader";
 import { Hero } from "@/components/shop/Hero";
 import { ProductSection } from "@/components/shop/ProductSection";
 import { AboutSection, ContactSection, SiteFooter } from "@/components/shop/Sections";
+import { DoctorsSection } from "@/components/shop/DoctorsSection";
 import { CartSheet } from "@/components/shop/CartSheet";
 import { useReveal } from "@/hooks/use-shop";
 
@@ -40,6 +41,7 @@ function Index() {
         <Hero />
         <ProductSection />
         <AboutSection />
+        <DoctorsSection />
         <ContactSection />
       </main>
       <SiteFooter />

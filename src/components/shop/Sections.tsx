@@ -1,11 +1,11 @@
 import { Leaf, ShieldCheck, Truck, MapPin, Phone, Mail, Clock } from "lucide-react";
-import { useParallax, useSettings } from "@/hooks/use-shop";
+import { useParallax } from "@/hooks/use-shop";
 import texture from "@/assets/texture-herbs.jpg";
 
 export function AboutSection() {
   const y = useParallax();
   return (
-    <section id="about" className="relative overflow-hidden bg-cream py-24 sm:py-32">
+    <section id="about" className="relative overflow-hidden bg-cream py-20 sm:py-24">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-6 lg:grid-cols-2">
         <div className="reveal relative overflow-hidden rounded-[2rem] shadow-[var(--shadow-lift)]">
           <img
@@ -18,8 +18,7 @@ export function AboutSection() {
             style={{ transform: `translate3d(0, ${Math.max(-40, Math.min(40, (y - 1200) * 0.05))}px, 0) scale(1.1)` }}
           />
           <div className="glass absolute bottom-5 left-5 right-5 rounded-2xl p-5">
-            <p className="eyebrow"></p>
-            <p className="mt-2 text-sm text-foreground/80">
+            <p className="text-sm tracking-wide text-foreground/80">
               HEALING THROUGH CENTURIES OF UNANI WISDOM
             </p>
           </div>
@@ -27,7 +26,7 @@ export function AboutSection() {
 
         <div className="reveal">
           <p className="eyebrow">Our roots</p>
-          <h2 className="mt-4 font-display text-4xl sm:text-5xl uppercase">
+          <h2 className="mt-3 font-display text-4xl sm:text-5xl uppercase">
             DAWAIIN : THE ESSENCE  OF UNANI MEDICINE
           </h2>
           <div className="mt-5 leading-relaxed text-muted-foreground space-y-4">
@@ -61,17 +60,14 @@ export function AboutSection() {
 }
 
 export function ContactSection() {
-  const { settings } = useSettings();
   return (
-    <section id="contact" className="mx-auto max-w-7xl px-5 py-24 sm:px-6 sm:py-32">
+    <section id="contact" className="mx-auto max-w-7xl px-5 py-20 sm:px-6 sm:py-24">
       <div className="reveal max-w-2xl">
-        <p className="eyebrow"></p>
-        <h2 className="mt-4 font-display text-4xl sm:text-5xl"></h2>
-        <p className="mt-4 text-muted-foreground">
-        </p>
+        <p className="eyebrow">Visit us</p>
+        <h2 className="mt-3 font-display text-4xl sm:text-5xl">Store &amp; contact</h2>
       </div>
 
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
+      <div className="mt-10 grid gap-6 lg:grid-cols-3">
         {[
           {
             icon: MapPin,
@@ -115,7 +111,6 @@ export function ContactSection() {
 }
 
 export function SiteFooter() {
-  const { settings } = useSettings();
   return (
     <footer className="border-t bg-primary py-14 text-primary-foreground">
       <div className="mx-auto grid max-w-7xl gap-10 px-5 sm:px-6 md:grid-cols-3">
