@@ -49,19 +49,6 @@ export function Hero() {
               <a href="#about">Our tradition</a>
             </Button>
           </div>
-
-          <div className="mt-12 grid max-w-lg grid-cols-3 gap-3">
-            {[
-              { k: "45+", v: "Years of practice" },
-              { k: "100%", v: "Natural ingredients" },
-              { k: "20k+", v: "Families served" },
-            ].map((s) => (
-              <div key={s.v} className="glass rounded-2xl px-4 py-4">
-                <p className="font-display text-2xl text-primary">{s.k}</p>
-                <p className="mt-1 text-[0.7rem] uppercase tracking-widest text-muted-foreground">{s.v}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="glass animate-float absolute right-6 top-1/3 hidden items-center gap-2 rounded-full px-5 py-3 xl:flex">
