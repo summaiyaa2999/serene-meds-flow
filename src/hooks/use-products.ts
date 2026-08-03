@@ -45,7 +45,7 @@ export function useProducts() {
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
    if (error) {
-  console.error("PRODUCT ERROR:", error);
+  alert("PRODUCT ERROR: " + error.message);
   setError(error.message);
 }
     else {
