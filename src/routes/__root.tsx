@@ -79,20 +79,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Dawaiin — Ayurvedic Apothecary" },
+      { title: "Dawaiin — Premium Ayurvedic Medicines Online" },
       {
         name: "description",
         content:
-          "Premium classical Ayurvedic medicines, churnas, vatis and herbal oils delivered across India.",
+          "Shop classical Ayurvedic churnas, vatis, arishtas and herbal oils from Dawaiin. Lab-tested, small-batch remedies with fast delivery across India.",
       },
       { name: "author", content: "Dawaiin" },
-      { property: "og:title", content: "Dawaiin — Ayurvedic Apothecary" },
+      { property: "og:title", content: "Dawaiin — Premium Ayurvedic Medicines Online" },
       {
         property: "og:description",
-        content: "Premium classical Ayurvedic medicines delivered across India.",
+        content: "Shop classical Ayurvedic churnas, vatis, arishtas and herbal oils from Dawaiin. Lab-tested, small-batch remedies with fast delivery across India.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Dawaiin — Premium Ayurvedic Medicines Online" },
+      { name: "twitter:description", content: "Shop classical Ayurvedic churnas, vatis, arishtas and herbal oils from Dawaiin. Lab-tested, small-batch remedies with fast delivery across India." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7ba895c3-475c-4072-a836-2472ab0a980a/id-preview-8e130673--ab824b57-8298-4443-9474-4554f4d3953d.lovable.app-1785741095890.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7ba895c3-475c-4072-a836-2472ab0a980a/id-preview-8e130673--ab824b57-8298-4443-9474-4554f4d3953d.lovable.app-1785741095890.png" },
     ],
     links: [
       {

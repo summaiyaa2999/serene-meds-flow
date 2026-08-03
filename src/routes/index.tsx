@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Classical Ayurvedic remedies prepared the traditional way. Order online with secure payment or WhatsApp.",
+          "Shop classical Ayurvedic churnas, vatis, arishtas and herbal oils from Dawaiin. Lab-tested, small-batch remedies with fast delivery across India.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
