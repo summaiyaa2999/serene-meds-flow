@@ -54,6 +54,15 @@ export function useProducts() {
 
   useEffect(() => {
     void refresh();
+    const channel = supabase
+      .channel("products-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        void refresh();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [refresh]);
 
   return { products, loading, error, refresh };
