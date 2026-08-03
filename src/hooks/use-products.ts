@@ -33,7 +33,21 @@ export function rowToProduct(r: Row): Product {
 }
 
 export function useProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([
+  {
+    id: "fallback-1",
+    name: "Ayurvedic Medicine",
+    sanskrit: null,
+    category: "Ayurveda",
+    price: 0,
+    mrp: null,
+    pack: "Enquire",
+    description: "Please contact us for availability and pricing.",
+    imageUrl: null,
+    inStock: true,
+    sortOrder: 1,
+  },
+]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
