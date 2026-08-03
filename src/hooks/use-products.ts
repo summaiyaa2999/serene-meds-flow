@@ -44,7 +44,10 @@ export function useProducts() {
       .select("*")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
-    if (error) setError(error.message);
+   if (error) {
+  console.error("PRODUCT ERROR:", error);
+  setError(error.message);
+}
     else {
       setError(null);
       setProducts((data as unknown as Row[]).map(rowToProduct));
