@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Product } from "@/lib/shop";
+import { normalizeImageUrl, type Product } from "@/lib/shop";
+
 
 type Row = {
   id: string;
@@ -26,7 +27,7 @@ export function rowToProduct(r: Row): Product {
     mrp: r.mrp === null ? null : Number(r.mrp),
     pack: r.pack,
     description: r.description,
-    imageUrl: r.image_url,
+    imageUrl: normalizeImageUrl(r.image_url),
     inStock: r.in_stock,
     sortOrder: r.sort_order,
   };
