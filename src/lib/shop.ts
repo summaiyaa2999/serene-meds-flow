@@ -54,6 +54,44 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const SHIPPING_NOTE = "Orders below ₹500 will have a ₹30 shipping cost.";
 
+/**
+ * Turns a pasted link into a direct image link when possible.
+ * Search-result pages (Bing / Google Images) are not images, but they carry the
+ * real image address in a query parameter — we extract it so the picture shows.
+ * Returns null when the link cannot be used as an image source.
+ */
+export function normalizeImageUrl(raw?: string | null): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  if (value.startsWith("data:image/")) return value;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+  for (const key of ["mediaurl", "mediaUrl", "imgurl", "imgUrl", "url", "image_url"]) {
+    const nested = url.searchParams.get(key);
+    if (nested) {
+      try {
+        const decoded = new URL(decodeURIComponent(nested));
+        if (decoded.protocol === "http:" || decoded.protocol === "https:") return decoded.toString();
+      } catch {
+        /* ignore and fall through */
+      }
+    }
+  }
+
+  // A search-results page with no extractable image is not usable as an <img> source.
+  if (/^\/(search|images\/search)/i.test(url.pathname)) return null;
+
+  return url.toString();
+}
+
+
 const KEYS = {
   settings: "dawaiin.settings",
   orders: "dawaiin.orders",
