@@ -17,16 +17,19 @@ function ProductCard({
   onAdd: () => void;
   whatsappNumber: string;
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <article className="reveal group relative flex flex-col overflow-hidden rounded-3xl border bg-card transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[var(--shadow-lift)]">
-      {product.imageUrl && (
+      {product.imageUrl && !imageFailed && (
         <img
           src={product.imageUrl}
           alt={product.name}
           loading="lazy"
+          onError={() => setImageFailed(true)}
           className="h-48 w-full object-cover"
         />
       )}
+
       <div className="flex flex-1 flex-col p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
