@@ -31,20 +31,25 @@ export function useOrders() {
 export function useCart() {
   const lines = useStoreValue<CartLine[]>(store.getCart);
 
+  // Quantities are always whole, positive and capped — never trust a stray value.
+  const sanitize = (qty: number) => Math.min(99, Math.max(0, Math.floor(Number(qty) || 0)));
+
   const add = useCallback((id: string, qty = 1) => {
+    const amount = sanitize(qty) || 1;
     const current = store.getCart();
     const found = current.find((l) => l.id === id);
     store.setCart(
       found
-        ? current.map((l) => (l.id === id ? { ...l, qty: l.qty + qty } : l))
-        : [...current, { id, qty }],
+        ? current.map((l) => (l.id === id ? { ...l, qty: sanitize(l.qty + amount) || 1 } : l))
+        : [...current, { id, qty: amount }],
     );
   }, []);
 
   const setQty = useCallback((id: string, qty: number) => {
+    const amount = sanitize(qty);
     const current = store.getCart();
     store.setCart(
-      qty <= 0 ? current.filter((l) => l.id !== id) : current.map((l) => (l.id === id ? { ...l, qty } : l)),
+      amount <= 0 ? current.filter((l) => l.id !== id) : current.map((l) => (l.id === id ? { ...l, qty: amount } : l)),
     );
   }, []);
 
