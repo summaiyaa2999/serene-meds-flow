@@ -44,14 +44,14 @@ export function useProducts() {
       .select("*")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
-   if (error) {
-  alert("PRODUCT ERROR: " + error.message);
-  setError(error.message);
-}
-    else {
+    if (error) {
+      console.error("Failed to load products:", error.message);
+      setError(error.message);
+    } else {
       setError(null);
       setProducts((data as unknown as Row[]).map(rowToProduct));
     }
+
     setLoading(false);
   }, []);
 

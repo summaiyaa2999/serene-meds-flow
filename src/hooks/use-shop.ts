@@ -57,7 +57,6 @@ export function useCart() {
 
 export function useReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>(".reveal");
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -69,10 +68,24 @@ export function useReveal() {
       },
       { threshold: 0.12 },
     );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+
+    const observeAll = () => {
+      document.querySelectorAll<HTMLElement>(".reveal:not(.in-view)").forEach((el) => io.observe(el));
+    };
+
+    observeAll();
+
+    // Content rendered later (e.g. products loaded from the backend) must also be observed.
+    const mo = new MutationObserver(() => observeAll());
+    mo.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      mo.disconnect();
+      io.disconnect();
+    };
   }, []);
 }
+
 
 export function useParallax() {
   const [y, setY] = useState(0);
