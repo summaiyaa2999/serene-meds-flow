@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { store, type CartLine, type Settings, type Order } from "@/lib/shop";
 
-function useStoreValue<T>(getter: () => T) {
-  const [value, setValue] = useState<T>(getter);
+function useStoreValue<T>(getter: () => T, initial: T) {
+  // Start from a hydration-safe value; real (localStorage) value lands after mount.
+  const [value, setValue] = useState<T>(initial);
   useEffect(() => {
     const sync = () => setValue(getter());
     sync();
