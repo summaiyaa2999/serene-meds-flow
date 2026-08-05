@@ -12,6 +12,7 @@ import { useOrders, useSettings } from "@/hooks/use-shop";
 import { useProducts } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 import { buildOrderMessage, inr, whatsappLink, type Product, type Order } from "@/lib/shop";
+import { ImageUploadButton } from "@/components/shop/ImageUploadButton";
 
 export const Route = createFileRoute("/admin")({
   ssr: false,
