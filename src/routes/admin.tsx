@@ -276,7 +276,14 @@ function Admin() {
                   <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={draft.mrp} onChange={(e) => setDraft({ ...draft, mrp: e.target.value })} /></div>
                 </div>
                 <div><Label>Pack</Label><Input className="mt-1" placeholder="100 g / 60 tablets" value={draft.pack} onChange={(e) => setDraft({ ...draft, pack: e.target.value })} /></div>
-                <div><Label>Image URL</Label><Input className="mt-1" placeholder="https://…" value={draft.imageUrl} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })} /></div>
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Product photo</Label>
+                    <ImageUploadButton onUploaded={(url) => setDraft({ ...draft, imageUrl: url })} />
+                  </div>
+                  <Input className="mt-1" placeholder="Upload a photo or paste an image URL" value={draft.imageUrl} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })} />
+                  {draft.imageUrl ? <img src={draft.imageUrl} alt="Preview of the product photo" className="mt-2 h-24 w-24 rounded-xl object-cover" /> : null}
+                </div>
                 <div><Label>Description</Label><Textarea rows={3} className="mt-1" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></div>
                 <Button className="w-full rounded-full" onClick={() => void addProduct()}>
                   <Plus className="mr-1.5 h-4 w-4" /> Add product
