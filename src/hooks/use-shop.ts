@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { store, type CartLine, type Settings, type Order } from "@/lib/shop";
+import { store, DEFAULT_SETTINGS, type CartLine, type Settings, type Order } from "@/lib/shop";
 
 function useStoreValue<T>(getter: () => T, initial: T) {
   // Start from a hydration-safe value; real (localStorage) value lands after mount.
@@ -20,17 +20,17 @@ function useStoreValue<T>(getter: () => T, initial: T) {
 
 
 export function useSettings() {
-  const settings = useStoreValue<Settings>(store.getSettings);
+  const settings = useStoreValue<Settings>(store.getSettings, DEFAULT_SETTINGS);
   return { settings, setSettings: store.setSettings };
 }
 
 export function useOrders() {
-  const orders = useStoreValue<Order[]>(store.getOrders);
+  const orders = useStoreValue<Order[]>(store.getOrders, []);
   return { orders, setOrders: store.setOrders };
 }
 
 export function useCart() {
-  const lines = useStoreValue<CartLine[]>(store.getCart);
+  const lines = useStoreValue<CartLine[]>(store.getCart, []);
 
   // Quantities are always whole, positive and capped — never trust a stray value.
   const sanitize = (qty: number) => Math.min(99, Math.max(0, Math.floor(Number(qty) || 0)));
