@@ -350,14 +350,18 @@ function Admin() {
                       defaultValue={p.pack}
                       onBlur={(e) => e.target.value !== p.pack && void updateProduct(p.id, { pack: e.target.value })}
                     />
-                    <Input
-                      className="h-9 sm:col-span-2"
-                      placeholder="Image URL"
-                      defaultValue={p.imageUrl ?? ""}
-                      onBlur={(e) =>
-                        e.target.value !== (p.imageUrl ?? "") && void updateProduct(p.id, { image_url: e.target.value || null })
-                      }
-                    />
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <Input
+                        key={p.imageUrl ?? "none"}
+                        className="h-9 flex-1"
+                        placeholder="Upload a photo or paste an image URL"
+                        defaultValue={p.imageUrl ?? ""}
+                        onBlur={(e) =>
+                          e.target.value !== (p.imageUrl ?? "") && void updateProduct(p.id, { image_url: e.target.value || null })
+                        }
+                      />
+                      <ImageUploadButton label="Upload" onUploaded={(url) => void updateProduct(p.id, { image_url: url })} />
+                    </div>
                     <Textarea
                       rows={2}
                       className="sm:col-span-2"
