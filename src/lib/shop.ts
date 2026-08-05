@@ -177,7 +177,11 @@ export function buildProductEnquiry(product: Product) {
 }
 
 export function whatsappLink(number: string, message: string) {
-  return `https://wa.me/${number.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
+  const digits = number.replace(/\D/g, "");
+  const internationalNumber = digits.length === 10 ? `91${digits}` : digits || WHATSAPP_NUMBER;
+  // Use WhatsApp Web directly. wa.me currently redirects through api.whatsapp.com,
+  // which is blocked in some embedded browsers and privacy-filtered networks.
+  return `https://web.whatsapp.com/send?phone=${internationalNumber}&text=${encodeURIComponent(message)}`;
 }
 
 /**
@@ -187,18 +191,8 @@ export function whatsappLink(number: string, message: string) {
  */
 export function openWhatsApp(url: string, win?: Window | null) {
   if (win && !win.closed) {
-    win.location.href = url;
+    win.location.replace(url);
     return;
   }
-  try {
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch {
-    window.location.href = url;
-  }
+  window.location.assign(url);
 }
