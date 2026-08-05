@@ -179,3 +179,26 @@ export function buildProductEnquiry(product: Product) {
 export function whatsappLink(number: string, message: string) {
   return `https://wa.me/${number.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Opens a WhatsApp chat reliably.
+ * `win` is a tab opened synchronously during the click (avoids popup blocking after
+ * awaits). Falls back to an anchor click, then to navigating the current page.
+ */
+export function openWhatsApp(url: string, win?: Window | null) {
+  if (win && !win.closed) {
+    win.location.href = url;
+    return;
+  }
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch {
+    window.location.href = url;
+  }
+}
