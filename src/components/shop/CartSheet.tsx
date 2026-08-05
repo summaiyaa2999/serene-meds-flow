@@ -10,7 +10,7 @@ import { useCart, useSettings, useOrders } from "@/hooks/use-shop";
 import { useProducts, rowToProduct } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 
-import { buildOrderMessage, inr, whatsappLink, type Customer, type Order, type Product } from "@/lib/shop";
+import { buildOrderMessage, inr, openWhatsApp, whatsappLink, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
 import { payWithRazorpay } from "@/lib/razorpay";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
@@ -76,6 +76,8 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
   async function placeOrder(payment: "razorpay" | "cod") {
     if (!canCheckout) return toast.error("Product prices are still loading. Please wait a moment.");
     if (!valid) return toast.error("Please complete all delivery details");
+    // Opened during the click so the browser does not treat it as a blocked popup later.
+    const waTab = typeof window !== "undefined" ? window.open("", "_blank") : null;
     setBusy(true);
     try {
       const { priced, sub, ship, grand } = await priceFromDatabase();
@@ -83,6 +85,7 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
       let paymentId: string | undefined;
       if (payment === "razorpay") {
         if (!settings.razorpayKeyId) {
+          waTab?.close();
           setBusy(false);
           return toast.error("Online payment is not configured yet. Add a Razorpay Key ID in the admin panel.");
         }
@@ -109,13 +112,15 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
       };
 
       setOrders([order, ...orders]);
-      window.open(whatsappLink(settings.whatsappNumber, buildOrderMessage(order)), "_blank");
+      const number = (settings.whatsappNumber || "").replace(/\D/g, "") || WHATSAPP_NUMBER;
+      openWhatsApp(whatsappLink(number, buildOrderMessage(order)), waTab);
       clear();
       setCustomer(EMPTY);
       setStep("cart");
       onOpenChange(false);
       toast.success("Order placed — details sent to WhatsApp");
     } catch (e) {
+      waTab?.close();
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
