@@ -10,7 +10,7 @@ import { useCart, useSettings, useOrders } from "@/hooks/use-shop";
 import { useProducts, rowToProduct } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 
-import { buildOrderMessage, inr, openWhatsApp, whatsappLink, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
+import { buildOrderMessage, inr, openWhatsApp, whatsappLinks, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
 import { payWithRazorpay } from "@/lib/razorpay";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
@@ -113,12 +113,24 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
       setOrders([order, ...orders]);
       const number = (settings.whatsappNumber || "").replace(/\D/g, "") || WHATSAPP_NUMBER;
-      openWhatsApp(whatsappLink(number, buildOrderMessage(order)), waTab);
+      const message = buildOrderMessage(order);
+      const opened = await openWhatsApp(whatsappLinks(number, message), waTab);
       clear();
       setCustomer(EMPTY);
       setStep("cart");
       onOpenChange(false);
-      toast.success("Order placed — details sent to WhatsApp");
+      if (opened) {
+        toast.success("Order placed — details sent to WhatsApp");
+      } else {
+        toast.error("Couldn't open WhatsApp. Copy your order and send it to +91 7078718575.", {
+          duration: 15000,
+          action: {
+            label: "Copy order",
+            onClick: () => void navigator.clipboard?.writeText(message),
+          },
+        });
+      }
+
     } catch (e) {
       waTab?.close();
       toast.error(e instanceof Error ? e.message : "Something went wrong");
