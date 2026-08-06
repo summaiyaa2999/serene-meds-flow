@@ -186,13 +186,13 @@ export function whatsappLinks(number: string, message: string) {
   const n = normalizeNumber(number);
   const text = encodeURIComponent(message);
   const deepLink = `whatsapp://send?phone=${n}&text=${text}`;
-  const web = `https://web.whatsapp.com/send?phone=${n}&text=${text}`;
+  const web = `https://web.whatsapp.com/send/?phone=${n}&text=${text}&type=phone_number&app_absent=0`;
   const shortLink = `https://wa.me/${n}?text=${text}`;
 
   const isMobile =
     typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  return isMobile ? [deepLink, shortLink, web] : [web, shortLink, deepLink];
+  return isMobile ? [deepLink, shortLink, web] : [web, shortLink];
 }
 
 /** Single best link — used for plain anchors. */
@@ -200,51 +200,37 @@ export function whatsappLink(number: string, message: string) {
   return whatsappLinks(number, message)[0];
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
- * Opens a WhatsApp chat, trying each URL format in turn.
- * `win` is a tab opened synchronously during the click (avoids popup blocking after
- * awaits). Resolves to false when every attempt appears to have failed.
+ * Opens WhatsApp immediately from the user's click. Pass a synchronously opened
+ * tab when async checkout work must finish before the destination is known.
  */
 export async function openWhatsApp(urls: string[], win?: Window | null): Promise<boolean> {
   if (typeof window === "undefined" || urls.length === 0) return false;
 
   if (win && !win.closed) {
-    for (const url of urls) {
-      try {
-        win.location.replace(url);
-      } catch {
-        continue;
-      }
-      await wait(1200);
-      // Tab closed (handed off to the app) or navigated away → success.
-      if (win.closed) return true;
-      let href = "";
-      try {
-        href = win.location.href;
-      } catch {
-        // Cross-origin access denied means it navigated to WhatsApp.
-        return true;
-      }
-      if (href && href !== "about:blank" && !href.startsWith("about:")) return true;
-    }
     try {
-      win.close();
+      win.location.href = urls[0];
+      return true;
     } catch {
-      /* ignore */
+      try {
+        win.location.href = urls[1] ?? urls[0];
+        return true;
+      } catch {
+        win.close();
+        return false;
+      }
     }
-    return false;
   }
 
-  // Popup was blocked — navigate the current page instead.
-  const before = window.location.href;
+  const opened = window.open(urls[0], "_blank", "noopener,noreferrer");
+  if (opened) return true;
+
+  // Popup was blocked: use the current tab so the order can still proceed.
   try {
     window.location.assign(urls[0]);
+    return true;
   } catch {
     return false;
   }
-  await wait(1500);
-  return window.location.href !== before;
 }
 
