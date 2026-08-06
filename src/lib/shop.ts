@@ -176,23 +176,75 @@ export function buildProductEnquiry(product: Product) {
     .join("\n");
 }
 
-export function whatsappLink(number: string, message: string) {
-  const digits = number.replace(/\D/g, "");
-  const internationalNumber = digits.length === 10 ? `91${digits}` : digits || WHATSAPP_NUMBER;
-  // Use WhatsApp Web directly. wa.me currently redirects through api.whatsapp.com,
-  // which is blocked in some embedded browsers and privacy-filtered networks.
-  return `https://web.whatsapp.com/send?phone=${internationalNumber}&text=${encodeURIComponent(message)}`;
+function normalizeNumber(number: string) {
+  const digits = (number || "").replace(/\D/g, "");
+  return digits.length === 10 ? `91${digits}` : digits || WHATSAPP_NUMBER;
 }
 
-/**
- * Opens a WhatsApp chat reliably.
- * `win` is a tab opened synchronously during the click (avoids popup blocking after
- * awaits). Falls back to an anchor click, then to navigating the current page.
- */
-export function openWhatsApp(url: string, win?: Window | null) {
-  if (win && !win.closed) {
-    win.location.replace(url);
-    return;
-  }
-  window.location.assign(url);
+/** Ordered list of WhatsApp URLs to try, best-first for the current device. */
+export function whatsappLinks(number: string, message: string) {
+  const n = normalizeNumber(number);
+  const text = encodeURIComponent(message);
+  const deepLink = `whatsapp://send?phone=${n}&text=${text}`;
+  const web = `https://web.whatsapp.com/send?phone=${n}&text=${text}`;
+  const shortLink = `https://wa.me/${n}?text=${text}`;
+
+  const isMobile =
+    typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  return isMobile ? [deepLink, shortLink, web] : [web, shortLink, deepLink];
 }
+
+/** Single best link — used for plain anchors. */
+export function whatsappLink(number: string, message: string) {
+  return whatsappLinks(number, message)[0];
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Opens a WhatsApp chat, trying each URL format in turn.
+ * `win` is a tab opened synchronously during the click (avoids popup blocking after
+ * awaits). Resolves to false when every attempt appears to have failed.
+ */
+export async function openWhatsApp(urls: string[], win?: Window | null): Promise<boolean> {
+  if (typeof window === "undefined" || urls.length === 0) return false;
+
+  if (win && !win.closed) {
+    for (const url of urls) {
+      try {
+        win.location.replace(url);
+      } catch {
+        continue;
+      }
+      await wait(1200);
+      // Tab closed (handed off to the app) or navigated away → success.
+      if (win.closed) return true;
+      let href = "";
+      try {
+        href = win.location.href;
+      } catch {
+        // Cross-origin access denied means it navigated to WhatsApp.
+        return true;
+      }
+      if (href && href !== "about:blank" && !href.startsWith("about:")) return true;
+    }
+    try {
+      win.close();
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+
+  // Popup was blocked — navigate the current page instead.
+  const before = window.location.href;
+  try {
+    window.location.assign(urls[0]);
+  } catch {
+    return false;
+  }
+  await wait(1500);
+  return window.location.href !== before;
+}
+
