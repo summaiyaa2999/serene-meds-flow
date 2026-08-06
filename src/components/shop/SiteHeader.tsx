@@ -65,7 +65,11 @@ export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
                   {n.label}
                 </a>
               ))}
+              <Link to="/admin" className="text-sm font-medium text-foreground/60 transition-colors hover:text-primary">
+                Admin
+              </Link>
             </nav>
+
 
             <Button variant="outline" size="icon" className="rounded-full" onClick={onCartOpen} aria-label="Open cart">
               <span className="relative">
