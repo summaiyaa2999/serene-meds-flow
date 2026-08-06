@@ -106,9 +106,10 @@ export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
                   <a className="flex items-center gap-2" href={`tel:+${settings.whatsappNumber}`}>
                     <Phone className="h-4 w-4" /> +{settings.whatsappNumber}
                   </a>
-                  <Link to="/admin" className="block text-xs uppercase tracking-widest">
+                  <Link to="/admin" onClick={() => setOpen(false)} className="block text-xs uppercase tracking-widest">
                     Admin panel
                   </Link>
+
                 </div>
               </SheetContent>
             </Sheet>
