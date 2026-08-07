@@ -195,9 +195,11 @@ export function whatsappLinks(number: string, message: string) {
   return isMobile ? [deepLink, shortLink, web] : [web, shortLink];
 }
 
-/** Single best link — used for plain anchors. */
+/** Universal direct chat link. Keeping this as a real anchor preserves the
+ * browser's trusted click and avoids popup blockers. */
 export function whatsappLink(number: string, message: string) {
-  return whatsappLinks(number, message)[0];
+  const n = normalizeNumber(number);
+  return `https://wa.me/${n}?text=${encodeURIComponent(message)}`;
 }
 
 /**

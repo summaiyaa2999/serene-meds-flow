@@ -10,7 +10,7 @@ import { useCart, useSettings, useOrders } from "@/hooks/use-shop";
 import { useProducts, rowToProduct } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 
-import { buildOrderMessage, inr, openWhatsApp, whatsappLinks, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
+import { buildOrderMessage, inr, openWhatsApp, whatsappLink, whatsappLinks, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
 import { payWithRazorpay } from "@/lib/razorpay";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
@@ -25,6 +25,7 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [step, setStep] = useState<Step>("cart");
   const [customer, setCustomer] = useState<Customer>(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [preparedOrder, setPreparedOrder] = useState<{ order: Order; message: string } | null>(null);
 
   const items = useMemo(
     () =>
@@ -137,6 +138,43 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
     } finally {
       setBusy(false);
     }
+  }
+
+  async function prepareWhatsAppOrder() {
+    if (!canCheckout) return toast.error("Product prices are still loading. Please wait a moment.");
+    if (!valid) return toast.error("Please complete all delivery details");
+    setBusy(true);
+    try {
+      const { priced, sub, ship, grand } = await priceFromDatabase();
+      const order: Order = {
+        id: "DWN" + Date.now().toString().slice(-8),
+        createdAt: new Date().toISOString(),
+        customer,
+        items: priced,
+        subtotal: sub,
+        shipping: ship,
+        total: grand,
+        payment: "cod",
+        status: "new",
+      };
+      setPreparedOrder({ order, message: buildOrderMessage(order) });
+      setStep("review");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not prepare your order");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function completeWhatsAppOrder() {
+    if (!preparedOrder) return;
+    setOrders([preparedOrder.order, ...orders]);
+    clear();
+    setCustomer(EMPTY);
+    setPreparedOrder(null);
+    setStep("cart");
+    onOpenChange(false);
+    toast.success("WhatsApp opened with your order details");
   }
 
   return (
@@ -293,9 +331,9 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
                   className="w-full rounded-full"
                   size="lg"
                   disabled={!canCheckout || !valid}
-                  onClick={() => setStep("review")}
+                  onClick={() => void prepareWhatsAppOrder()}
                 >
-                  Review order
+                  {busy ? "Verifying prices…" : "Review order"}
                 </Button>
                 <button className="w-full pt-1 text-xs uppercase tracking-widest text-muted-foreground" onClick={() => setStep("cart")}>
                   Back to bag
@@ -305,13 +343,22 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
             {step === "review" && (
               <div className="mt-2 space-y-2">
-                <Button className="w-full rounded-full" size="lg" disabled={busy || !canCheckout} onClick={() => placeOrder("cod")}>
-                  <MessageCircle className="mr-2 h-4 w-4" /> Send Order on WhatsApp
-                </Button>
+                {preparedOrder && (
+                  <Button asChild className="w-full rounded-full" size="lg">
+                    <a
+                      href={whatsappLink(WHATSAPP_NUMBER, preparedOrder.message)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={completeWhatsAppOrder}
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4" /> Send Order on WhatsApp
+                    </a>
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full rounded-full" size="lg" disabled={busy || !canCheckout} onClick={() => placeOrder("razorpay")}>
                   <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online
                 </Button>
-                <button className="w-full pt-1 text-xs uppercase tracking-widest text-muted-foreground" onClick={() => setStep("details")}>
+                <button className="w-full pt-1 text-xs uppercase tracking-widest text-muted-foreground" onClick={() => { setPreparedOrder(null); setStep("details"); }}>
                   Edit details
                 </button>
               </div>
