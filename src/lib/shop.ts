@@ -186,20 +186,20 @@ export function whatsappLinks(number: string, message: string) {
   const n = normalizeNumber(number);
   const text = encodeURIComponent(message);
   const deepLink = `whatsapp://send?phone=${n}&text=${text}`;
-  const web = `https://web.whatsapp.com/send/?phone=${n}&text=${text}&type=phone_number&app_absent=0`;
+  const web = `https://web.whatsapp.com/send?phone=${n}&text=${text}&type=phone_number&app_absent=0`;
   const shortLink = `https://wa.me/${n}?text=${text}`;
 
   const isMobile =
     typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  return isMobile ? [deepLink, shortLink, web] : [web, shortLink];
+  return isMobile ? [deepLink, web, shortLink] : [web, shortLink];
 }
 
 /** Universal direct chat link. Keeping this as a real anchor preserves the
  * browser's trusted click and avoids popup blockers. */
 export function whatsappLink(number: string, message: string) {
   const n = normalizeNumber(number);
-  return `https://wa.me/${n}?text=${encodeURIComponent(message)}`;
+  return `https://web.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(message)}&type=phone_number&app_absent=0`;
 }
 
 /**
