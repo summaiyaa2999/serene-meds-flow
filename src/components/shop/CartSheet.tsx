@@ -10,7 +10,7 @@ import { useCart, useSettings, useOrders } from "@/hooks/use-shop";
 import { useProducts, rowToProduct } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
 
-import { buildOrderMessage, inr, whatsappLink, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
+import { buildOrderMessage, inr, openWhatsApp, whatsappLink, whatsappLinks, WHATSAPP_NUMBER, type Customer, type Order, type Product } from "@/lib/shop";
 import { payWithRazorpay } from "@/lib/razorpay";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
