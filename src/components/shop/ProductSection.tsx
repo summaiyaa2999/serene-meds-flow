@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { buildProductEnquiry, inr, openWhatsApp, whatsappLink, whatsappLinks, SHIPPING_NOTE, type Product } from "@/lib/shop";
+import { buildProductEnquiry, inr, whatsappLink, SHIPPING_NOTE, WHATSAPP_NUMBER, type Product } from "@/lib/shop";
 import { useCart, useSettings } from "@/hooks/use-shop";
 import { useProducts } from "@/hooks/use-products";
 
@@ -64,13 +64,9 @@ function ProductCard({
               asChild
             >
               <a
-                href={whatsappLink(whatsappNumber, buildProductEnquiry(product))}
+                href={whatsappLink(whatsappNumber || WHATSAPP_NUMBER, buildProductEnquiry(product))}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void openWhatsApp(whatsappLinks(whatsappNumber, buildProductEnquiry(product)));
-                }}
               >
                 <MessageCircle className="h-4 w-4" />
               </a>
@@ -159,15 +155,9 @@ export function ProductSection() {
           </p>
           <Button asChild className="mt-6 rounded-full">
             <a
-              href={whatsappLink(settings.whatsappNumber, "Hello Dawaiin, I would like to enquire about a medicine.")}
+              href={whatsappLink(settings.whatsappNumber || WHATSAPP_NUMBER, "Hello Dawaiin, I would like to enquire about a medicine.")}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(event) => {
-                event.preventDefault();
-                void openWhatsApp(
-                  whatsappLinks(settings.whatsappNumber, "Hello Dawaiin, I would like to enquire about a medicine."),
-                );
-              }}
             >
               <MessageCircle className="mr-2 h-4 w-4" /> Enquire on WhatsApp
             </a>
