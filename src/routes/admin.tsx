@@ -148,9 +148,37 @@ function Admin() {
   const { settings, setSettings } = useSettings();
   const { products, refresh, loading } = useProducts();
   const { orders, setOrders } = useOrders();
+  const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const [draft, setDraft] = useState<Draft>(BLANK);
   const [form, setForm] = useState(settings);
   const [status, setStatus] = useState<"loading" | "out" | "notadmin" | "in">("loading");
+
+  const fetchDbOrders = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) {
+      const parsed: Order[] = data.map((row) => ({
+        id: row.order_number || row.id,
+        createdAt: row.created_at,
+        customer: {
+          name: row.customer_name,
+          phone: row.customer_phone,
+          address: row.delivery_address,
+          city: "",
+          pincode: "",
+        },
+        items: Array.isArray(row.items) ? (row.items as any) : [],
+        subtotal: Number(row.subtotal),
+        shipping: Number(row.shipping),
+        total: Number(row.total),
+        payment: "cod",
+        status: row.status as any,
+      }));
+      setDbOrders(parsed);
+    }
+  }, []);
 
   const check = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
@@ -160,14 +188,27 @@ function Admin() {
       .select("role")
       .eq("user_id", data.user.id)
       .eq("role", "admin");
-    setStatus(roles && roles.length > 0 ? "in" : "notadmin");
-  }, []);
+    const isAdmin = Boolean(roles && roles.length > 0);
+    setStatus(isAdmin ? "in" : "notadmin");
+    if (isAdmin) void fetchDbOrders();
+  }, [fetchDbOrders]);
 
   useEffect(() => {
     void check();
     const { data: sub } = supabase.auth.onAuthStateChange(() => void check());
     return () => sub.subscription.unsubscribe();
   }, [check]);
+
+  const allOrders = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const o of orders) map.set(o.id, o);
+    for (const o of dbOrders) {
+      if (!map.has(o.id)) map.set(o.id, o);
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [orders, dbOrders]);
 
   useEffect(() => setForm(settings), [settings]);
 
@@ -261,7 +302,7 @@ function Admin() {
         <Tabs defaultValue="products">
           <TabsList className="rounded-full">
             <TabsTrigger value="products" className="rounded-full">Products ({products.length})</TabsTrigger>
-            <TabsTrigger value="orders" className="rounded-full">Orders ({orders.length})</TabsTrigger>
+            <TabsTrigger value="orders" className="rounded-full">Orders ({allOrders.length})</TabsTrigger>
             <TabsTrigger value="settings" className="rounded-full">Settings</TabsTrigger>
           </TabsList>
 
@@ -378,8 +419,8 @@ function Admin() {
           </TabsContent>
 
           <TabsContent value="orders" className="mt-6 space-y-4">
-            {orders.length === 0 && <p className="text-muted-foreground">No orders yet.</p>}
-            {orders.map((o) => (
+            {allOrders.length === 0 && <p className="text-muted-foreground">No orders yet.</p>}
+            {allOrders.map((o) => (
               <div key={o.id} className="rounded-3xl border bg-card p-6">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                   <div className="min-w-0">

@@ -126,6 +126,55 @@ export const store = {
 export const inr = (n: number) =>
   "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+export type ReceiptParams = {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  items: { name: string; qty: number; price: number }[];
+  subtotal: number;
+  shipping: number;
+  total: number;
+};
+
+export function buildWhatsAppReceipt(params: ReceiptParams): string {
+  const itemLines = params.items
+    .map((item) => `- ${item.name} x ${item.qty} - ₹${item.price}`)
+    .join("\n");
+
+  return [
+    "--------------------------------",
+    `📦 NEW ORDER: #${params.orderId}`,
+    "--------------------------------",
+    "👤 Customer Details:",
+    `Name: ${params.customerName}`,
+    `Phone: ${params.customerPhone}`,
+    `Address: ${params.deliveryAddress}`,
+    "",
+    "🛒 Items Ordered:",
+    itemLines,
+    "",
+    "💰 Bill Summary:",
+    `Subtotal: ₹${params.subtotal}`,
+    `Shipping: ₹${params.shipping}`,
+    "--------------------------------",
+    `TOTAL AMOUNT DUE: ₹${params.total}`,
+    "--------------------------------",
+    `(Please verify #${params.orderId} in admin panel before dispatch)`,
+  ].join("\n");
+}
+
+export function formatShopkeeperPhone(phone: string): string {
+  const digits = (phone || "").replace(/[^0-9]/g, "");
+  if (!digits) return WHATSAPP_NUMBER;
+  return digits.length === 10 ? `91${digits}` : digits;
+}
+
+export function buildWhatsAppDirectUrl(phone: string, formattedMessage: string): string {
+  const cleanShopkeeperPhone = formatShopkeeperPhone(phone);
+  return `https://wa.me/${cleanShopkeeperPhone}?text=${encodeURIComponent(formattedMessage)}`;
+}
+
 export function buildOrderMessage(order: Order) {
   const lines = order.items
     .map(
