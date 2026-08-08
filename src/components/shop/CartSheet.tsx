@@ -102,82 +102,91 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
     if (!validateCustomer()) return;
 
     setBusy(true);
+
+    let priced = items.map((i) => ({ name: i.name, pack: i.pack, qty: i.qty, price: i.price }));
+    let sub = subtotal;
+    let ship = shipping;
+    let grand = total;
+
     try {
-      // 1. Backend Lock: Verify price from database
-      const { priced, sub, ship, grand } = await priceFromDatabase();
-
-      // 2. Order Reference Number
-      const generatedOrderNum = "ORD-" + Math.floor(1000 + Math.random() * 9000);
-      const fullDeliveryAddress = `${customer.address.trim()}, ${customer.city.trim()} - ${customer.pincode.trim()}`;
-
-      // 3. Save Order to Supabase Database
-      const { data: insertedOrder, error: dbError } = await supabase
-        .from("orders")
-        .insert({
-          order_number: generatedOrderNum,
-          customer_name: customer.name.trim(),
-          customer_phone: customer.phone.trim(),
-          delivery_address: fullDeliveryAddress,
-          items: priced.map((i) => ({ name: i.name, pack: i.pack, qty: i.qty, price: i.price })),
-          subtotal: sub,
-          shipping: ship,
-          total: grand,
-          status: "Pending WhatsApp Confirmation",
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        console.error("Supabase order insert error:", dbError);
-        throw new Error("Could not save order to database: " + dbError.message);
-      }
-
-      const orderId = insertedOrder?.order_number || generatedOrderNum;
-
-      // 4. Update local state history
-      const localOrder: Order = {
-        id: orderId,
-        createdAt: insertedOrder?.created_at || new Date().toISOString(),
-        customer,
-        items: priced,
-        subtotal: sub,
-        shipping: ship,
-        total: grand,
-        payment: "cod",
-        status: "new",
-      };
-      setOrders([localOrder, ...orders]);
-
-      // 5. Build WhatsApp Receipt
-      const formattedMessage = buildWhatsAppReceipt({
-        orderId,
-        customerName: customer.name.trim(),
-        customerPhone: customer.phone.trim(),
-        deliveryAddress: fullDeliveryAddress,
-        items: priced.map((i) => ({ name: i.name, qty: i.qty, price: i.price })),
-        subtotal: sub,
-        shipping: ship,
-        total: grand,
-      });
-
-      // 6. Format shopkeeper phone & build target WhatsApp URL
-      const shopkeeperPhone = settings.whatsappNumber || WHATSAPP_NUMBER;
-      const whatsappUrl = buildWhatsAppDirectUrl(shopkeeperPhone, formattedMessage);
-
-      // 7. Clear Shopping Cart & Reset State
-      clear();
-      setCustomer(EMPTY);
-      setValidationErrors({});
-      onOpenChange(false);
-      toast.success(`Order #${orderId} saved! Redirecting to WhatsApp…`);
-
-      // 8. Instant Redirection Handoff
-      window.location.href = whatsappUrl;
+      const verified = await priceFromDatabase();
+      priced = verified.priced;
+      sub = verified.sub;
+      ship = verified.ship;
+      grand = verified.grand;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to process order.");
-    } finally {
-      setBusy(false);
+      console.warn("Catalog price verification warning:", err);
     }
+
+    const generatedOrderNum = "ORD-" + Math.floor(1000 + Math.random() * 9000);
+    const fullDeliveryAddress = `${customer.address.trim()}, ${customer.city.trim()} - ${customer.pincode.trim()}`;
+
+    const orderData = {
+      order_number: generatedOrderNum,
+      customer_name: customer.name.trim(),
+      customer_phone: customer.phone.trim(),
+      delivery_address: fullDeliveryAddress,
+      items: priced.map((i) => ({ name: i.name, pack: i.pack, qty: i.qty, price: i.price })),
+      subtotal: sub,
+      shipping: ship,
+      total: grand,
+      status: "Pending WhatsApp Confirmation",
+    };
+
+    // Non-blocking Supabase save with error catching
+    try {
+      const { error } = await supabase.from("orders").insert([orderData]);
+      if (error) {
+        console.warn("Supabase save warning (table missing or policy restriction):", error.message);
+      }
+    } catch (err) {
+      console.warn("Network or execution error during Supabase order save:", err);
+    }
+
+    // Update local orders state
+    const orderId = generatedOrderNum;
+    const localOrder: Order = {
+      id: orderId,
+      createdAt: new Date().toISOString(),
+      customer,
+      items: priced,
+      subtotal: sub,
+      shipping: ship,
+      total: grand,
+      payment: "cod",
+      status: "new",
+    };
+    try {
+      setOrders([localOrder, ...orders]);
+    } catch {
+      /* ignore local storage error */
+    }
+
+    // Guaranteed Execution Flow:
+    // 1. Construct WhatsApp URL
+    const formattedMessage = buildWhatsAppReceipt({
+      orderId,
+      customerName: customer.name.trim(),
+      customerPhone: customer.phone.trim(),
+      deliveryAddress: fullDeliveryAddress,
+      items: priced.map((i) => ({ name: i.name, qty: i.qty, price: i.price })),
+      subtotal: sub,
+      shipping: ship,
+      total: grand,
+    });
+
+    const shopkeeperPhone = settings.whatsappNumber || WHATSAPP_NUMBER;
+    const whatsappUrl = buildWhatsAppDirectUrl(shopkeeperPhone, formattedMessage);
+
+    // 2. Clear Shopping Cart & State Cleanup
+    clear();
+    setCustomer(EMPTY);
+    setValidationErrors({});
+    onOpenChange(false);
+    setBusy(false);
+
+    // 3. Trigger navigation using window.location.href
+    window.location.href = whatsappUrl;
   }
 
   async function handleRazorpayOrder() {
