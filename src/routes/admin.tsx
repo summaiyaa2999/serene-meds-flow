@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Printer, MessageCircle, Trash2, Plus, Save, Lock, LogOut, RefreshCw } from "lucide-react";
+import { Printer, MessageCircle, Trash2, Plus, Save, Lock, LogOut, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,19 @@ export const Route = createFileRoute("/admin")({
 });
 
 function printSlip(order: Order) {
-  const html = `<html><head><title>${order.id}</title><style>
+  if (!order) return;
+  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  const dateStr = isNaN(createdDate.getTime())
+    ? new Date().toLocaleString("en-IN")
+    : createdDate.toLocaleString("en-IN");
+  const customerName = order.customer?.name || "Customer";
+  const customerAddr = order.customer?.address || "";
+  const customerCity = order.customer?.city || "";
+  const customerPin = order.customer?.pincode || "";
+  const customerPhone = order.customer?.phone || "";
+  const itemsList = Array.isArray(order.items) ? order.items : [];
+
+  const html = `<html><head><title>${order.id || "Dispatch Slip"}</title><style>
     body{font-family:ui-sans-serif,system-ui;padding:24px;max-width:420px}
     h1{font-size:18px;margin:0 0 4px} .m{color:#555;font-size:12px}
     table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
@@ -39,14 +51,14 @@ function printSlip(order: Order) {
     .box{border:1px solid #333;padding:14px;border-radius:8px;margin-top:12px}
   </style></head><body>
     <h1>DAWAIIN — Dispatch Slip</h1>
-    <div class="m">Order ${order.id} · ${new Date(order.createdAt).toLocaleString("en-IN")}</div>
-    <div class="box"><strong>${order.customer.name}</strong><br/>${order.customer.address}<br/>
-    ${order.customer.city} - ${order.customer.pincode}<br/>Phone: ${order.customer.phone}</div>
-    <table>${order.items
-      .map((i) => `<tr><td>${i.name} (${i.pack}) x${i.qty}</td><td class="r">${inr(i.price * i.qty)}</td></tr>`)
+    <div class="m">Order ${order.id || ""} · ${dateStr}</div>
+    <div class="box"><strong>${customerName}</strong><br/>${customerAddr}<br/>
+    ${customerCity} ${customerPin ? "- " + customerPin : ""}<br/>Phone: ${customerPhone}</div>
+    <table>${itemsList
+      .map((i) => `<tr><td>${i?.name || "Item"} (${i?.pack || ""}) x${i?.qty || 1}</td><td class="r">${inr((i?.price || 0) * (i?.qty || 1))}</td></tr>`)
       .join("")}
-      <tr><td>Shipping</td><td class="r">${order.shipping === 0 ? "FREE" : inr(order.shipping)}</td></tr>
-      <tr><td><strong>TOTAL</strong></td><td class="r"><strong>${inr(order.total)}</strong></td></tr>
+      <tr><td>Shipping</td><td class="r">${order.shipping === 0 ? "FREE" : inr(order.shipping || 0)}</td></tr>
+      <tr><td><strong>TOTAL</strong></td><td class="r"><strong>${inr(order.total || 0)}</strong></td></tr>
     </table>
     <p class="m">${order.payment === "razorpay" ? "PAID ONLINE · " + (order.paymentId ?? "") : "CASH ON DELIVERY"}</p>
   </body></html>`;
@@ -87,21 +99,26 @@ function AuthGate({ onReady }: { onReady: () => void }) {
 
   async function submit() {
     setBusy(true);
-    const fn =
-      mode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({
-            email,
-            password,
-            options: { emailRedirectTo: `${window.location.origin}/admin` },
-          });
-    const { data, error } = await fn;
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    if (mode === "signup" && !data.session) {
-      return toast.success("Account created — check your email to confirm, then sign in.");
+    try {
+      const fn =
+        mode === "signin"
+          ? supabase.auth.signInWithPassword({ email, password })
+          : supabase.auth.signUp({
+              email,
+              password,
+              options: { emailRedirectTo: `${window.location.origin}/admin` },
+            });
+      const { data, error } = await fn;
+      setBusy(false);
+      if (error) return toast.error(error.message);
+      if (mode === "signup" && !data.session) {
+        return toast.success("Account created — check your email to confirm, then sign in.");
+      }
+      onReady();
+    } catch (err: any) {
+      setBusy(false);
+      toast.error(err?.message || "Authentication failed.");
     }
-    onReady();
   }
 
   return (
@@ -146,51 +163,95 @@ function AuthGate({ onReady }: { onReady: () => void }) {
 
 function Admin() {
   const { settings, setSettings } = useSettings();
-  const { products, refresh, loading } = useProducts();
+  const { products, refresh, loading: productsLoading, error: productsError } = useProducts();
   const { orders, setOrders } = useOrders();
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(BLANK);
   const [form, setForm] = useState(settings);
   const [status, setStatus] = useState<"loading" | "out" | "notadmin" | "in">("loading");
 
   const fetchDbOrders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) {
-      const parsed: Order[] = data.map((row) => ({
-        id: row.order_number || row.id,
-        createdAt: row.created_at,
-        customer: {
-          name: row.customer_name,
-          phone: row.customer_phone,
-          address: row.delivery_address,
-          city: "",
-          pincode: "",
-        },
-        items: Array.isArray(row.items) ? (row.items as any) : [],
-        subtotal: Number(row.subtotal),
-        shipping: Number(row.shipping),
-        total: Number(row.total),
-        payment: "cod",
-        status: row.status as any,
-      }));
-      setDbOrders(parsed);
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Admin query error (orders):", error);
+        setOrdersError(error.message || "Unable to load orders from database.");
+        setDbOrders([]);
+      } else {
+        const rows = data ?? [];
+        const parsed: Order[] = rows.map((row) => {
+          let itemsList: any[] = [];
+          if (Array.isArray(row.items)) {
+            itemsList = row.items;
+          } else if (typeof row.items === "string") {
+            try {
+              const p = JSON.parse(row.items);
+              if (Array.isArray(p)) itemsList = p;
+            } catch {
+              itemsList = [];
+            }
+          }
+
+          return {
+            id: row.order_number || row.id || "ORD-UNKNOWN",
+            createdAt: row.created_at || new Date().toISOString(),
+            customer: {
+              name: row.customer_name || "Guest",
+              phone: row.customer_phone || "",
+              address: row.delivery_address || "",
+              city: "",
+              pincode: "",
+            },
+            items: itemsList.map((i: any) => ({
+              name: String(i?.name || "Item"),
+              pack: String(i?.pack || ""),
+              qty: Math.max(1, Number(i?.qty) || 1),
+              price: Math.max(0, Number(i?.price) || 0),
+            })),
+            subtotal: Number(row.subtotal) || 0,
+            shipping: Number(row.shipping) || 0,
+            total: Number(row.total) || 0,
+            payment: "cod",
+            status: (row.status as any) || "new",
+          };
+        });
+        setDbOrders(parsed);
+      }
+    } catch (err: any) {
+      console.error("Execution error fetching orders:", err);
+      setOrdersError(err?.message || "Unable to load orders from database.");
+      setDbOrders([]);
+    } finally {
+      setOrdersLoading(false);
     }
   }, []);
 
   const check = useCallback(async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return setStatus("out");
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "admin");
-    const isAdmin = Boolean(roles && roles.length > 0);
-    setStatus(isAdmin ? "in" : "notadmin");
-    if (isAdmin) void fetchDbOrders();
+    try {
+      const { data, error: userError } = await supabase.auth.getUser();
+      if (userError || !data?.user) return setStatus("out");
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .eq("role", "admin");
+
+      if (rolesError) console.error("Admin role query error:", rolesError);
+      const isAdmin = Boolean(roles && roles.length > 0);
+      setStatus(isAdmin ? "in" : "notadmin");
+      if (isAdmin) void fetchDbOrders();
+    } catch (err) {
+      console.error("Auth check error:", err);
+      setStatus("out");
+    }
   }, [fetchDbOrders]);
 
   useEffect(() => {
@@ -201,33 +262,46 @@ function Admin() {
 
   const allOrders = useMemo(() => {
     const map = new Map<string, Order>();
-    for (const o of orders) map.set(o.id, o);
-    for (const o of dbOrders) {
-      if (!map.has(o.id)) map.set(o.id, o);
+    const safeLocalOrders = Array.isArray(orders) ? orders : [];
+    const safeDbOrders = Array.isArray(dbOrders) ? dbOrders : [];
+
+    for (const o of safeLocalOrders) {
+      if (o && o.id) map.set(o.id, o);
     }
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    for (const o of safeDbOrders) {
+      if (o && o.id && !map.has(o.id)) map.set(o.id, o);
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+    });
   }, [orders, dbOrders]);
 
   useEffect(() => setForm(settings), [settings]);
 
   async function addProduct() {
     if (!draft.name.trim() || !draft.price) return toast.error("Name and price are required");
-    const { error } = await supabase.from("products").insert({
-      name: draft.name.trim(),
-      sanskrit: draft.sanskrit.trim() || null,
-      category: draft.category.trim() || "General",
-      price: Number(draft.price),
-      mrp: draft.mrp ? Number(draft.mrp) : null,
-      pack: draft.pack.trim(),
-      description: draft.description.trim(),
-      image_url: draft.imageUrl.trim() || null,
-    });
-    if (error) return toast.error(error.message);
-    setDraft(BLANK);
-    await refresh();
-    toast.success("Product added");
+    try {
+      const { error } = await supabase.from("products").insert({
+        name: draft.name.trim(),
+        sanskrit: draft.sanskrit.trim() || null,
+        category: draft.category.trim() || "General",
+        price: Number(draft.price) || 0,
+        mrp: draft.mrp ? Number(draft.mrp) || null : null,
+        pack: draft.pack.trim(),
+        description: draft.description.trim(),
+        image_url: draft.imageUrl.trim() || null,
+      });
+      if (error) return toast.error(error.message);
+      setDraft(BLANK);
+      await refresh();
+      toast.success("Product added");
+    } catch (err: any) {
+      console.error("Error adding product:", err);
+      toast.error(err?.message || "Failed to add product");
+    }
   }
 
   type ProductPatch = {
@@ -241,16 +315,28 @@ function Admin() {
   };
 
   async function updateProduct(id: string, patch: ProductPatch) {
-    const { error } = await supabase.from("products").update(patch).eq("id", id);
-    if (error) return toast.error(error.message);
-    await refresh();
+    if (!id) return;
+    try {
+      const { error } = await supabase.from("products").update(patch).eq("id", id);
+      if (error) return toast.error(error.message);
+      await refresh();
+    } catch (err: any) {
+      console.error("Error updating product:", err);
+      toast.error(err?.message || "Failed to update product");
+    }
   }
 
   async function deleteProduct(id: string) {
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    await refresh();
-    toast.success("Product deleted");
+    if (!id) return;
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) return toast.error(error.message);
+      await refresh();
+      toast.success("Product deleted");
+    } catch (err: any) {
+      console.error("Error deleting product:", err);
+      toast.error(err?.message || "Failed to delete product");
+    }
   }
 
   if (status === "loading") {
@@ -279,6 +365,9 @@ function Admin() {
     );
   }
 
+  const safeProductsCount = Array.isArray(products) ? products.length : 0;
+  const safeOrdersCount = Array.isArray(allOrders) ? allOrders.length : 0;
+
   return (
     <div className="min-h-screen bg-cream pb-24">
       <header className="glass sticky top-0 z-40 border-b">
@@ -301,8 +390,8 @@ function Admin() {
       <div className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
         <Tabs defaultValue="products">
           <TabsList className="rounded-full">
-            <TabsTrigger value="products" className="rounded-full">Products ({products.length})</TabsTrigger>
-            <TabsTrigger value="orders" className="rounded-full">Orders ({allOrders.length})</TabsTrigger>
+            <TabsTrigger value="products" className="rounded-full">Products ({safeProductsCount})</TabsTrigger>
+            <TabsTrigger value="orders" className="rounded-full">Orders ({safeOrdersCount})</TabsTrigger>
             <TabsTrigger value="settings" className="rounded-full">Settings</TabsTrigger>
           </TabsList>
 
@@ -335,17 +424,31 @@ function Admin() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">{loading ? "Loading…" : `${products.length} medicines`}</p>
+                <p className="text-sm text-muted-foreground">{productsLoading ? "Loading…" : `${safeProductsCount} medicines`}</p>
                 <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void refresh()}>
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
                 </Button>
               </div>
-              {products.length === 0 && !loading && (
+
+              {/* In-Page Error Banner for Products */}
+              {productsError && (
+                <div className="flex items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Unable to load products: {productsError}</span>
+                  </div>
+                  <Button size="sm" variant="outline" className="rounded-full shrink-0 ml-2" onClick={() => void refresh()}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+                  </Button>
+                </div>
+              )}
+
+              {safeProductsCount === 0 && !productsLoading && !productsError && (
                 <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
                   No medicines yet. Add your first one on the left.
                 </p>
               )}
-              {products.map((p: Product) => (
+              {products?.map((p: Product) => (
                 <div key={p.id} className="rounded-2xl border bg-card p-4">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                     <div className="min-w-0">
@@ -419,81 +522,115 @@ function Admin() {
           </TabsContent>
 
           <TabsContent value="orders" className="mt-6 space-y-4">
-            {allOrders.length === 0 && <p className="text-muted-foreground">No orders yet.</p>}
-            {allOrders.map((o) => (
-              <div key={o.id} className="rounded-3xl border bg-card p-6">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-display text-xl">{o.id}</p>
-                      <Badge variant={o.payment === "razorpay" ? "default" : "secondary"} className="rounded-full">
-                        {o.payment === "razorpay" ? "Paid online" : "COD"}
-                      </Badge>
-                      <Badge variant="outline" className="rounded-full capitalize">{o.status}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {new Date(o.createdAt).toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                  <p className="font-display text-2xl text-primary">{inr(o.total)}</p>
-                </div>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {ordersLoading ? "Loading orders…" : `${safeOrdersCount} total orders`}
+              </p>
+              <Button size="sm" variant="ghost" className="rounded-full" onClick={() => void fetchDbOrders()}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh orders
+              </Button>
+            </div>
 
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-muted/60 p-4 text-sm">
-                    <p className="font-medium">{o.customer.name}</p>
-                    <p className="mt-1 text-muted-foreground">{o.customer.address}</p>
-                    <p className="text-muted-foreground">{o.customer.city} - {o.customer.pincode}</p>
-                    <p className="text-muted-foreground">{o.customer.phone}</p>
-                  </div>
-                  <ul className="space-y-1 text-sm">
-                    {o.items.map((i) => (
-                      <li key={i.name} className="flex justify-between gap-3">
-                        <span className="min-w-0 truncate">{i.name} ×{i.qty}</span>
-                        <span className="shrink-0">{inr(i.price * i.qty)}</span>
-                      </li>
-                    ))}
-                  </ul>
+            {/* In-Page Error Banner for Orders */}
+            {ordersError && (
+              <div className="flex items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Unable to load orders: {ordersError}</span>
                 </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" className="rounded-full" onClick={() => printSlip(o)}>
-                    <Printer className="mr-1.5 h-4 w-4" /> Print slip
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => window.open(whatsappLink(settings.whatsappNumber, buildOrderMessage(o)), "_blank")}
-                  >
-                    <MessageCircle className="mr-1.5 h-4 w-4" /> Resend to WhatsApp
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="rounded-full"
-                    onClick={() =>
-                      setOrders(
-                        orders.map((x) =>
-                          x.id === o.id
-                            ? { ...x, status: x.status === "new" ? "packed" : x.status === "packed" ? "dispatched" : "new" }
-                            : x,
-                        ),
-                      )
-                    }
-                  >
-                    Mark next status
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-full text-destructive"
-                    onClick={() => setOrders(orders.filter((x) => x.id !== o.id))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button size="sm" variant="outline" className="rounded-full shrink-0 ml-2" onClick={() => void fetchDbOrders()}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+                </Button>
               </div>
-            ))}
+            )}
+
+            {safeOrdersCount === 0 && !ordersLoading && !ordersError && (
+              <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">No orders yet.</p>
+            )}
+
+            {allOrders?.map((o) => {
+              const dateStr = o?.createdAt && !isNaN(new Date(o.createdAt).getTime())
+                ? new Date(o.createdAt).toLocaleString("en-IN")
+                : "Recently";
+              const itemsList = Array.isArray(o?.items) ? o.items : [];
+
+              return (
+                <div key={o?.id || Math.random().toString()} className="rounded-3xl border bg-card p-6">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-display text-xl">{o?.id || "ORD-UNKNOWN"}</p>
+                        <Badge variant={o?.payment === "razorpay" ? "default" : "secondary"} className="rounded-full">
+                          {o?.payment === "razorpay" ? "Paid online" : "COD"}
+                        </Badge>
+                        <Badge variant="outline" className="rounded-full capitalize">{o?.status || "new"}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {dateStr}
+                      </p>
+                    </div>
+                    <p className="font-display text-2xl text-primary">{inr(o?.total || 0)}</p>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-muted/60 p-4 text-sm">
+                      <p className="font-medium">{o?.customer?.name || "Guest Customer"}</p>
+                      <p className="mt-1 text-muted-foreground">{o?.customer?.address || "No address provided"}</p>
+                      {o?.customer?.city || o?.customer?.pincode ? (
+                        <p className="text-muted-foreground">{o?.customer?.city} - {o?.customer?.pincode}</p>
+                      ) : null}
+                      <p className="text-muted-foreground">Phone: {o?.customer?.phone || "N/A"}</p>
+                    </div>
+                    <ul className="space-y-1 text-sm">
+                      {itemsList?.map((i, idx) => (
+                        <li key={i?.name ? `${i.name}-${idx}` : idx} className="flex justify-between gap-3">
+                          <span className="min-w-0 truncate">{i?.name || "Item"} ×{i?.qty || 1}</span>
+                          <span className="shrink-0">{inr((i?.price || 0) * (i?.qty || 1))}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="rounded-full" onClick={() => printSlip(o)}>
+                      <Printer className="mr-1.5 h-4 w-4" /> Print slip
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => window.open(whatsappLink(settings.whatsappNumber, buildOrderMessage(o)), "_blank")}
+                    >
+                      <MessageCircle className="mr-1.5 h-4 w-4" /> Resend to WhatsApp
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-full"
+                      onClick={() =>
+                        setOrders(
+                          orders.map((x) =>
+                            x?.id === o?.id
+                              ? { ...x, status: x.status === "new" ? "packed" : x.status === "packed" ? "dispatched" : "new" }
+                              : x,
+                          ),
+                        )
+                      }
+                    >
+                      Mark next status
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-destructive"
+                      onClick={() => setOrders(orders.filter((x) => x?.id !== o?.id))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </TabsContent>
 
           <TabsContent value="settings" className="mt-6">
