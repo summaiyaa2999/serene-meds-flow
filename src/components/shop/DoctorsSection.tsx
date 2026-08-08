@@ -1,10 +1,10 @@
 import { Stethoscope, Percent, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/hooks/use-shop";
-import { whatsappLink, WHATSAPP_NUMBER } from "@/lib/shop";
+import { WHATSAPP_NUMBER } from "@/lib/shop";
+import { openWhatsApp } from "@/lib/whatsapp";
 
-const MESSAGE =
-  "Hello Dawaiin, I am a doctor/wholesaler. Sharing my identity and requirements for wholesale pricing:";
+const DOCTOR_MESSAGE = "Hi, I am interested in doctor/wholesaler rates for bulk ordering.";
 
 export function DoctorsSection() {
   const { settings } = useSettings();
@@ -40,14 +40,14 @@ export function DoctorsSection() {
                 </div>
               </div>
 
-              <Button asChild size="lg" className="mt-8 rounded-full px-8">
-                <a
-                  href={whatsappLink(settings.whatsappNumber || WHATSAPP_NUMBER, MESSAGE)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <MessageCircle className="mr-2 h-4 w-4" /> Message us on WhatsApp
-                </a>
+              <Button
+                size="lg"
+                className="mt-8 rounded-full px-8"
+                onClick={() =>
+                  openWhatsApp(settings.whatsappNumber || WHATSAPP_NUMBER, DOCTOR_MESSAGE)
+                }
+              >
+                <MessageCircle className="mr-2 h-4 w-4" /> Message us on WhatsApp
               </Button>
             </div>
 

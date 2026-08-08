@@ -14,13 +14,13 @@ import {
   buildWhatsAppDirectUrl,
   buildOrderMessage,
   inr,
-  openWhatsApp,
   whatsappLinks,
   WHATSAPP_NUMBER,
   type Customer,
   type Order,
   type Product,
 } from "@/lib/shop";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { payWithRazorpay } from "@/lib/razorpay";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
@@ -176,7 +176,6 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
     });
 
     const shopkeeperPhone = settings.whatsappNumber || WHATSAPP_NUMBER;
-    const whatsappUrl = buildWhatsAppDirectUrl(shopkeeperPhone, formattedMessage);
 
     // 2. Clear Shopping Cart & State Cleanup
     clear();
@@ -185,8 +184,8 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
     onOpenChange(false);
     setBusy(false);
 
-    // 3. Trigger navigation using window.location.href
-    window.location.href = whatsappUrl;
+    // 3. Trigger navigation via openWhatsApp utility
+    openWhatsApp(shopkeeperPhone, formattedMessage);
   }
 
   async function handleRazorpayOrder() {

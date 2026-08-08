@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { buildProductEnquiry, inr, whatsappLink, SHIPPING_NOTE, WHATSAPP_NUMBER, type Product } from "@/lib/shop";
+import { inr, SHIPPING_NOTE, WHATSAPP_NUMBER, type Product } from "@/lib/shop";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { useCart, useSettings } from "@/hooks/use-shop";
 import { useProducts } from "@/hooks/use-products";
 
@@ -61,15 +62,14 @@ function ProductCard({
               variant="outline"
               className="rounded-full"
               aria-label={`Order ${product.name} on WhatsApp`}
-              asChild
+              onClick={() =>
+                openWhatsApp(
+                  whatsappNumber || WHATSAPP_NUMBER,
+                  `Hi, I would like to inquire about ${product.name}`,
+                )
+              }
             >
-              <a
-                href={whatsappLink(whatsappNumber || WHATSAPP_NUMBER, buildProductEnquiry(product))}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </a>
+              <MessageCircle className="h-4 w-4" />
             </Button>
             <Button size="sm" className="rounded-full px-5" disabled={!product.inStock} onClick={onAdd}>
               {product.inStock ? (
@@ -153,14 +153,16 @@ export function ProductSection() {
           <p className="mt-2 text-sm text-muted-foreground">
             Medicines will appear here soon. Meanwhile, message us on WhatsApp for any requirement.
           </p>
-          <Button asChild className="mt-6 rounded-full">
-            <a
-              href={whatsappLink(settings.whatsappNumber || WHATSAPP_NUMBER, "Hello Dawaiin, I would like to enquire about a medicine.")}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <MessageCircle className="mr-2 h-4 w-4" /> Enquire on WhatsApp
-            </a>
+          <Button
+            className="mt-6 rounded-full"
+            onClick={() =>
+              openWhatsApp(
+                settings.whatsappNumber || WHATSAPP_NUMBER,
+                "Hi, I would like to inquire about a medicine.",
+              )
+            }
+          >
+            <MessageCircle className="mr-2 h-4 w-4" /> Enquire on WhatsApp
           </Button>
         </div>
       ) : (
