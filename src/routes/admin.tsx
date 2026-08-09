@@ -91,6 +91,10 @@ const BLANK: Draft = {
   imageUrl: "",
 };
 
+const ALLOWED_ADMIN_EMAILS = [
+  "shahrukhchoudhary7078718575@gmail.com"
+];
+
 function AuthGate({ onReady }: { onReady: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -238,6 +242,10 @@ function Admin() {
     try {
       const { data, error: userError } = await supabase.auth.getUser();
       if (userError || !data?.user) return setStatus("out");
+
+      const userEmail = data.user.email?.toLowerCase() || "";
+      const isAllowedEmail = ALLOWED_ADMIN_EMAILS.includes(userEmail);
+
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
@@ -245,7 +253,9 @@ function Admin() {
         .eq("role", "admin");
 
       if (rolesError) console.error("Admin role query error:", rolesError);
-      const isAdmin = Boolean(roles && roles.length > 0);
+      const hasAdminRole = Boolean(roles && roles.length > 0);
+
+      const isAdmin = isAllowedEmail || hasAdminRole;
       setStatus(isAdmin ? "in" : "notadmin");
       if (isAdmin) void fetchDbOrders();
     } catch (err) {
