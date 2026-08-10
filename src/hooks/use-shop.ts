@@ -57,8 +57,25 @@ export function useCart() {
   const remove = useCallback((id: string) => setQty(id, 0), [setQty]);
   const clear = useCallback(() => store.setCart([]), []);
 
-  const count = lines.reduce((s, l) => s + l.qty, 0);
-  return { lines, add, setQty, remove, clear, count };
+  const totalItemsCount =
+    Array.isArray(lines) && lines.length > 0
+      ? lines.reduce(
+          (sum, item) =>
+            sum + Math.max(0, Math.floor(Number(item?.qty || (item as any)?.quantity) || 0)),
+          0
+        )
+      : 0;
+
+  return {
+    lines,
+    items: lines,
+    add,
+    setQty,
+    remove,
+    clear,
+    count: totalItemsCount,
+    totalItemsCount,
+  };
 }
 
 export function useReveal() {

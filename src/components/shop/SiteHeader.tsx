@@ -13,8 +13,8 @@ const NAV = [
 ];
 
 export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
-  const { count } = useCart();
-  const { settings } = useSettings();
+  const { count, totalItemsCount } = useCart();
+  const cartBadgeCount = totalItemsCount ?? count ?? 0;
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -74,11 +74,11 @@ export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
             <Button variant="outline" size="icon" className="rounded-full" onClick={onCartOpen} aria-label="Open cart">
               <span className="relative">
                 <ShoppingBag className="h-5 w-5" />
-                {count > 0 && (
+                {cartBadgeCount > 0 ? (
                   <span className="absolute -right-2.5 -top-2.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-clay px-1 text-[10px] font-semibold text-clay-foreground">
-                    {count}
+                    {cartBadgeCount}
                   </span>
-                )}
+                ) : null}
               </span>
             </Button>
 

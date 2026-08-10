@@ -119,8 +119,37 @@ export const store = {
   setSettings: (s: Settings) => write(KEYS.settings, s),
   getOrders: () => read<Order[]>(KEYS.orders, []),
   setOrders: (o: Order[]) => write(KEYS.orders, o),
-  getCart: () => read<CartLine[]>(KEYS.cart, []),
-  setCart: (c: CartLine[]) => write(KEYS.cart, c),
+  getCart: () => {
+    const raw = read<unknown>(KEYS.cart, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (item): item is CartLine =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        typeof (item as any).id === "string" &&
+        Boolean((item as any).id.trim()) &&
+        Number((item as any).qty || (item as any).quantity) > 0
+    );
+  },
+  setCart: (c: CartLine[]) => {
+    const validLines = Array.isArray(c)
+      ? c.filter(
+          (item) =>
+            Boolean(item?.id) &&
+            Boolean(String(item.id).trim()) &&
+            Number(item.qty || (item as any)?.quantity) > 0
+        )
+      : [];
+
+    if (validLines.length === 0) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(KEYS.cart);
+        window.dispatchEvent(new CustomEvent("dawaiin:store"));
+      }
+    } else {
+      write(KEYS.cart, validLines);
+    }
+  },
 };
 
 export const inr = (n: number) =>
