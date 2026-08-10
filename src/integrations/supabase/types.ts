@@ -64,6 +64,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          cf_payment_id: string | null
           created_at: string
           customer_name: string
           customer_phone: string
@@ -71,6 +72,7 @@ export type Database = {
           id: string
           items: Json
           order_number: string
+          payment_id: string | null
           shipping: number
           status: string
           subtotal: number
@@ -78,6 +80,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cf_payment_id?: string | null
           created_at?: string
           customer_name: string
           customer_phone: string
@@ -85,6 +88,7 @@ export type Database = {
           id?: string
           items?: Json
           order_number: string
+          payment_id?: string | null
           shipping?: number
           status?: string
           subtotal?: number
@@ -92,6 +96,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cf_payment_id?: string | null
           created_at?: string
           customer_name?: string
           customer_phone?: string
@@ -99,6 +104,7 @@ export type Database = {
           id?: string
           items?: Json
           order_number?: string
+          payment_id?: string | null
           shipping?: number
           status?: string
           subtotal?: number
