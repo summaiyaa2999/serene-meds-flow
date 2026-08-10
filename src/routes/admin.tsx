@@ -11,8 +11,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrders, useSettings } from "@/hooks/use-shop";
 import { useProducts } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderMessage, inr, whatsappLink, type Product, type Order } from "@/lib/shop";
+import {
+  buildOrderMessage,
+  inr,
+  whatsappLink,
+  DEFAULT_SETTINGS,
+  WHATSAPP_NUMBER,
+  type Product,
+  type Order,
+  type Settings,
+} from "@/lib/shop";
 import { ImageUploadButton } from "@/components/shop/ImageUploadButton";
+
+function AdminErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="grid min-h-screen place-items-center bg-cream px-5 text-center">
+      <div className="glass max-w-md rounded-3xl p-8">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle className="h-6 w-6" />
+        </div>
+        <h1 className="mt-4 font-display text-2xl">Admin Panel Error</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {error?.message || "An unexpected error occurred while loading the admin panel."}
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Button variant="default" className="rounded-full" onClick={() => reset()}>
+            <RefreshCw className="mr-1.5 h-4 w-4" /> Try again
+          </Button>
+          <Button asChild variant="outline" className="rounded-full">
+            <Link to="/">Go to store</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/admin")({
   ssr: false,
@@ -28,45 +61,51 @@ export const Route = createFileRoute("/admin")({
     ],
   }),
   component: Admin,
+  errorComponent: AdminErrorFallback,
 });
 
 function printSlip(order: Order) {
   if (!order) return;
-  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
-  const dateStr = isNaN(createdDate.getTime())
-    ? new Date().toLocaleString("en-IN")
-    : createdDate.toLocaleString("en-IN");
-  const customerName = order.customer?.name || "Customer";
-  const customerAddr = order.customer?.address || "";
-  const customerCity = order.customer?.city || "";
-  const customerPin = order.customer?.pincode || "";
-  const customerPhone = order.customer?.phone || "";
-  const itemsList = Array.isArray(order.items) ? order.items : [];
+  try {
+    const createdDate = order?.createdAt ? new Date(order.createdAt) : new Date();
+    const dateStr = isNaN(createdDate.getTime())
+      ? new Date().toLocaleString("en-IN")
+      : createdDate.toLocaleString("en-IN");
+    const customerName = order?.customer?.name || "Customer";
+    const customerAddr = order?.customer?.address || "";
+    const customerCity = order?.customer?.city || "";
+    const customerPin = order?.customer?.pincode || "";
+    const customerPhone = order?.customer?.phone || "";
+    const itemsList = Array.isArray(order?.items) ? order.items : [];
 
-  const html = `<html><head><title>${order.id || "Dispatch Slip"}</title><style>
-    body{font-family:ui-sans-serif,system-ui;padding:24px;max-width:420px}
-    h1{font-size:18px;margin:0 0 4px} .m{color:#555;font-size:12px}
-    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
-    td{padding:4px 0;border-bottom:1px dashed #ccc} .r{text-align:right}
-    .box{border:1px solid #333;padding:14px;border-radius:8px;margin-top:12px}
-  </style></head><body>
-    <h1>DAWAIIN — Dispatch Slip</h1>
-    <div class="m">Order ${order.id || ""} · ${dateStr}</div>
-    <div class="box"><strong>${customerName}</strong><br/>${customerAddr}<br/>
-    ${customerCity} ${customerPin ? "- " + customerPin : ""}<br/>Phone: ${customerPhone}</div>
-    <table>${itemsList
-      .map((i) => `<tr><td>${i?.name || "Item"} (${i?.pack || ""}) x${i?.qty || 1}</td><td class="r">${inr((i?.price || 0) * (i?.qty || 1))}</td></tr>`)
-      .join("")}
-      <tr><td>Shipping</td><td class="r">${order.shipping === 0 ? "FREE" : inr(order.shipping || 0)}</td></tr>
-      <tr><td><strong>TOTAL</strong></td><td class="r"><strong>${inr(order.total || 0)}</strong></td></tr>
-    </table>
-    <p class="m">${order.payment === "razorpay" ? "PAID ONLINE · " + (order.paymentId ?? "") : "CASH ON DELIVERY"}</p>
-  </body></html>`;
-  const w = window.open("", "_blank", "width=520,height=720");
-  if (!w) return;
-  w.document.write(html);
-  w.document.close();
-  w.print();
+    const html = `<html><head><title>${order?.id || "Dispatch Slip"}</title><style>
+      body{font-family:ui-sans-serif,system-ui;padding:24px;max-width:420px}
+      h1{font-size:18px;margin:0 0 4px} .m{color:#555;font-size:12px}
+      table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+      td{padding:4px 0;border-bottom:1px dashed #ccc} .r{text-align:right}
+      .box{border:1px solid #333;padding:14px;border-radius:8px;margin-top:12px}
+    </style></head><body>
+      <h1>DAWAIIN — Dispatch Slip</h1>
+      <div class="m">Order ${order?.id || ""} · ${dateStr}</div>
+      <div class="box"><strong>${customerName}</strong><br/>${customerAddr}<br/>
+      ${customerCity} ${customerPin ? "- " + customerPin : ""}<br/>Phone: ${customerPhone}</div>
+      <table>${itemsList
+        .map((i) => `<tr><td>${i?.name || "Item"} (${i?.pack || ""}) x${i?.qty || 1}</td><td class="r">${inr((i?.price || 0) * (i?.qty || 1))}</td></tr>`)
+        .join("")}
+        <tr><td>Shipping</td><td class="r">${order?.shipping === 0 ? "FREE" : inr(order?.shipping || 0)}</td></tr>
+        <tr><td><strong>TOTAL</strong></td><td class="r"><strong>${inr(order?.total || 0)}</strong></td></tr>
+      </table>
+      <p class="m">${order?.payment === "razorpay" ? "PAID ONLINE · " + (order?.paymentId ?? "") : "CASH ON DELIVERY"}</p>
+    </body></html>`;
+    const w = window.open("", "_blank", "width=520,height=720");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  } catch (err) {
+    console.error("Error printing slip:", err);
+    toast.error("Failed to generate print slip.");
+  }
 }
 
 type Draft = {
@@ -104,18 +143,24 @@ function AuthGate({ onReady }: { onReady: () => void }) {
   async function submit() {
     setBusy(true);
     try {
+      if (!supabase?.auth) {
+        toast.error("Authentication service unavailable.");
+        setBusy(false);
+        return;
+      }
+      const redirectOrigin = typeof window !== "undefined" ? window.location.origin : "";
       const fn =
         mode === "signin"
           ? supabase.auth.signInWithPassword({ email, password })
           : supabase.auth.signUp({
               email,
               password,
-              options: { emailRedirectTo: `${window.location.origin}/admin` },
+              options: { emailRedirectTo: `${redirectOrigin}/admin` },
             });
       const { data, error } = await fn;
       setBusy(false);
       if (error) return toast.error(error.message);
-      if (mode === "signup" && !data.session) {
+      if (mode === "signup" && !data?.session) {
         return toast.success("Account created — check your email to confirm, then sign in.");
       }
       onReady();
@@ -173,13 +218,18 @@ function Admin() {
   const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(BLANK);
-  const [form, setForm] = useState(settings);
+  const [form, setForm] = useState<Settings>(settings ?? DEFAULT_SETTINGS);
   const [status, setStatus] = useState<"loading" | "out" | "notadmin" | "in">("loading");
 
   const fetchDbOrders = useCallback(async () => {
     setOrdersLoading(true);
     setOrdersError(null);
     try {
+      if (!supabase) {
+        setOrdersError("Database client unavailable.");
+        setDbOrders([]);
+        return;
+      }
       const { data, error } = await supabase
         .from("orders")
         .select("*")
@@ -190,43 +240,47 @@ function Admin() {
         setOrdersError(error.message || "Unable to load orders from database.");
         setDbOrders([]);
       } else {
-        const rows = data ?? [];
-        const parsed: Order[] = rows.map((row) => {
-          let itemsList: any[] = [];
-          if (Array.isArray(row.items)) {
-            itemsList = row.items;
-          } else if (typeof row.items === "string") {
-            try {
-              const p = JSON.parse(row.items);
-              if (Array.isArray(p)) itemsList = p;
-            } catch {
-              itemsList = [];
+        const rows = Array.isArray(data) ? data : [];
+        const parsed: Order[] = rows
+          .map((row) => {
+            if (!row) return null;
+            let itemsList: any[] = [];
+            if (Array.isArray(row.items)) {
+              itemsList = row.items;
+            } else if (typeof row.items === "string") {
+              try {
+                const p = JSON.parse(row.items);
+                if (Array.isArray(p)) itemsList = p;
+              } catch {
+                itemsList = [];
+              }
             }
-          }
 
-          return {
-            id: row.order_number || row.id || "ORD-UNKNOWN",
-            createdAt: row.created_at || new Date().toISOString(),
-            customer: {
-              name: row.customer_name || "Guest",
-              phone: row.customer_phone || "",
-              address: row.delivery_address || "",
-              city: "",
-              pincode: "",
-            },
-            items: itemsList.map((i: any) => ({
-              name: String(i?.name || "Item"),
-              pack: String(i?.pack || ""),
-              qty: Math.max(1, Number(i?.qty) || 1),
-              price: Math.max(0, Number(i?.price) || 0),
-            })),
-            subtotal: Number(row.subtotal) || 0,
-            shipping: Number(row.shipping) || 0,
-            total: Number(row.total) || 0,
-            payment: "cod",
-            status: (row.status as any) || "new",
-          };
-        });
+            return {
+              id: String(row.order_number || row.id || "ORD-UNKNOWN"),
+              createdAt: String(row.created_at || new Date().toISOString()),
+              customer: {
+                name: String(row.customer_name || "Guest"),
+                phone: String(row.customer_phone || ""),
+                address: String(row.delivery_address || ""),
+                city: "",
+                pincode: "",
+              },
+              items: itemsList.map((i: any) => ({
+                name: String(i?.name || "Item"),
+                pack: String(i?.pack || ""),
+                qty: Math.max(1, Number(i?.qty) || 1),
+                price: Math.max(0, Number(i?.price) || 0),
+              })),
+              subtotal: Number(row.subtotal) || 0,
+              shipping: Number(row.shipping) || 0,
+              total: Number(row.total) || 0,
+              payment: (row as any).payment === "razorpay" ? "razorpay" : "cod",
+              paymentId: row.payment_id ? String(row.payment_id) : undefined,
+              status: (row.status as any) || "new",
+            };
+          })
+          .filter(Boolean) as Order[];
         setDbOrders(parsed);
       }
     } catch (err: any) {
@@ -240,20 +294,35 @@ function Admin() {
 
   const check = useCallback(async () => {
     try {
+      if (!supabase || !supabase.auth) {
+        setStatus("out");
+        return;
+      }
       const { data, error: userError } = await supabase.auth.getUser();
-      if (userError || !data?.user) return setStatus("out");
+      if (userError || !data?.user) {
+        setStatus("out");
+        return;
+      }
 
       const userEmail = data.user.email?.toLowerCase() || "";
       const isAllowedEmail = ALLOWED_ADMIN_EMAILS.includes(userEmail);
 
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id)
-        .eq("role", "admin");
+      let hasAdminRole = false;
+      try {
+        const { data: roles, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .eq("role", "admin");
 
-      if (rolesError) console.error("Admin role query error:", rolesError);
-      const hasAdminRole = Boolean(roles && roles.length > 0);
+        if (rolesError) {
+          console.error("Admin role query error:", rolesError);
+        } else {
+          hasAdminRole = Boolean(roles && roles.length > 0);
+        }
+      } catch (roleErr) {
+        console.error("Exception checking user roles:", roleErr);
+      }
 
       const isAdmin = isAllowedEmail || hasAdminRole;
       setStatus(isAdmin ? "in" : "notadmin");
@@ -265,9 +334,27 @@ function Admin() {
   }, [fetchDbOrders]);
 
   useEffect(() => {
+    let mounted = true;
     void check();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => void check());
-    return () => sub.subscription.unsubscribe();
+    let subscription: any = null;
+    try {
+      const { data: sub } = supabase.auth.onAuthStateChange(() => {
+        if (mounted) void check();
+      });
+      subscription = sub?.subscription;
+    } catch (e) {
+      console.warn("Failed to subscribe to auth state changes:", e);
+    }
+    return () => {
+      mounted = false;
+      if (subscription?.unsubscribe) {
+        try {
+          subscription.unsubscribe();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
   }, [check]);
 
   const allOrders = useMemo(() => {
@@ -276,10 +363,10 @@ function Admin() {
     const safeDbOrders = Array.isArray(dbOrders) ? dbOrders : [];
 
     for (const o of safeLocalOrders) {
-      if (o && o.id) map.set(o.id, o);
+      if (o && o.id) map.set(String(o.id), o);
     }
     for (const o of safeDbOrders) {
-      if (o && o.id && !map.has(o.id)) map.set(o.id, o);
+      if (o && o.id && !map.has(String(o.id))) map.set(String(o.id), o);
     }
 
     return Array.from(map.values()).sort((a, b) => {
@@ -289,11 +376,16 @@ function Admin() {
     });
   }, [orders, dbOrders]);
 
-  useEffect(() => setForm(settings), [settings]);
+  useEffect(() => {
+    if (settings) {
+      setForm(settings);
+    }
+  }, [settings]);
 
   async function addProduct() {
     if (!draft.name.trim() || !draft.price) return toast.error("Name and price are required");
     try {
+      if (!supabase) return toast.error("Database connection unavailable");
       const { error } = await supabase.from("products").insert({
         name: draft.name.trim(),
         sanskrit: draft.sanskrit.trim() || null,
@@ -327,6 +419,7 @@ function Admin() {
   async function updateProduct(id: string, patch: ProductPatch) {
     if (!id) return;
     try {
+      if (!supabase) return toast.error("Database connection unavailable");
       const { error } = await supabase.from("products").update(patch).eq("id", id);
       if (error) return toast.error(error.message);
       await refresh();
@@ -339,6 +432,7 @@ function Admin() {
   async function deleteProduct(id: string) {
     if (!id) return;
     try {
+      if (!supabase) return toast.error("Database connection unavailable");
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) return toast.error(error.message);
       await refresh();
@@ -366,7 +460,7 @@ function Admin() {
           <Button
             variant="outline"
             className="mt-6 rounded-full"
-            onClick={() => void supabase.auth.signOut()}
+            onClick={() => void supabase?.auth?.signOut()}
           >
             Sign out
           </Button>
@@ -390,7 +484,7 @@ function Admin() {
             <Button asChild variant="outline" className="rounded-full">
               <Link to="/">View store</Link>
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => void supabase.auth.signOut()} aria-label="Sign out">
+            <Button variant="ghost" size="icon" onClick={() => void supabase?.auth?.signOut()} aria-label="Sign out">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -458,76 +552,79 @@ function Admin() {
                   No medicines yet. Add your first one on the left.
                 </p>
               )}
-              {products?.map((p: Product) => (
-                <div key={p.id} className="rounded-2xl border bg-card p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-                    <div className="min-w-0">
-                      <Input
-                        className="h-9 font-medium"
-                        defaultValue={p.name}
-                        onBlur={(e) => e.target.value !== p.name && void updateProduct(p.id, { name: e.target.value })}
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">{p.category} · {p.pack || "—"}</p>
+              {products?.map((p: Product) => {
+                if (!p || !p.id) return null;
+                return (
+                  <div key={p.id} className="rounded-2xl border bg-card p-4">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                      <div className="min-w-0">
+                        <Input
+                          className="h-9 font-medium"
+                          defaultValue={p.name ?? ""}
+                          onBlur={(e) => e.target.value !== p.name && void updateProduct(p.id, { name: e.target.value })}
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">{p.category ?? "General"} · {p.pack || "—"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Input
+                          type="number"
+                          className="h-9 w-24"
+                          defaultValue={p.price ?? 0}
+                          onBlur={(e) =>
+                            Number(e.target.value) !== p.price && void updateProduct(p.id, { price: Number(e.target.value) })
+                          }
+                        />
+                        <Button
+                          size="sm"
+                          variant={p.inStock ? "secondary" : "outline"}
+                          className="rounded-full"
+                          onClick={() => void updateProduct(p.id, { in_stock: !p.inStock })}
+                        >
+                          {p.inStock ? "In stock" : "Sold out"}
+                        </Button>
+                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void deleteProduct(p.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <Input
-                        type="number"
-                        className="h-9 w-24"
-                        defaultValue={p.price}
+                        className="h-9"
+                        placeholder="Category"
+                        defaultValue={p.category ?? ""}
+                        onBlur={(e) => e.target.value !== p.category && void updateProduct(p.id, { category: e.target.value })}
+                      />
+                      <Input
+                        className="h-9"
+                        placeholder="Pack"
+                        defaultValue={p.pack ?? ""}
+                        onBlur={(e) => e.target.value !== p.pack && void updateProduct(p.id, { pack: e.target.value })}
+                      />
+                      <div className="flex items-center gap-2 sm:col-span-2">
+                        <Input
+                          key={p.imageUrl ?? "none"}
+                          className="h-9 flex-1"
+                          placeholder="Upload a photo or paste an image URL"
+                          defaultValue={p.imageUrl ?? ""}
+                          onBlur={(e) =>
+                            e.target.value !== (p.imageUrl ?? "") && void updateProduct(p.id, { image_url: e.target.value || null })
+                          }
+                        />
+                        <ImageUploadButton label="Upload" onUploaded={(url) => void updateProduct(p.id, { image_url: url })} />
+                      </div>
+                      <Textarea
+                        rows={2}
+                        className="sm:col-span-2"
+                        placeholder="Description"
+                        defaultValue={p.description ?? ""}
                         onBlur={(e) =>
-                          Number(e.target.value) !== p.price && void updateProduct(p.id, { price: Number(e.target.value) })
+                          e.target.value !== p.description && void updateProduct(p.id, { description: e.target.value })
                         }
                       />
-                      <Button
-                        size="sm"
-                        variant={p.inStock ? "secondary" : "outline"}
-                        className="rounded-full"
-                        onClick={() => void updateProduct(p.id, { in_stock: !p.inStock })}
-                      >
-                        {p.inStock ? "In stock" : "Sold out"}
-                      </Button>
-                      <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void deleteProduct(p.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <Input
-                      className="h-9"
-                      placeholder="Category"
-                      defaultValue={p.category}
-                      onBlur={(e) => e.target.value !== p.category && void updateProduct(p.id, { category: e.target.value })}
-                    />
-                    <Input
-                      className="h-9"
-                      placeholder="Pack"
-                      defaultValue={p.pack}
-                      onBlur={(e) => e.target.value !== p.pack && void updateProduct(p.id, { pack: e.target.value })}
-                    />
-                    <div className="flex items-center gap-2 sm:col-span-2">
-                      <Input
-                        key={p.imageUrl ?? "none"}
-                        className="h-9 flex-1"
-                        placeholder="Upload a photo or paste an image URL"
-                        defaultValue={p.imageUrl ?? ""}
-                        onBlur={(e) =>
-                          e.target.value !== (p.imageUrl ?? "") && void updateProduct(p.id, { image_url: e.target.value || null })
-                        }
-                      />
-                      <ImageUploadButton label="Upload" onUploaded={(url) => void updateProduct(p.id, { image_url: url })} />
-                    </div>
-                    <Textarea
-                      rows={2}
-                      className="sm:col-span-2"
-                      placeholder="Description"
-                      defaultValue={p.description}
-                      onBlur={(e) =>
-                        e.target.value !== p.description && void updateProduct(p.id, { description: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </TabsContent>
 
@@ -558,14 +655,15 @@ function Admin() {
               <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">No orders yet.</p>
             )}
 
-            {allOrders?.map((o) => {
+            {allOrders?.map((o, index) => {
+              if (!o) return null;
               const dateStr = o?.createdAt && !isNaN(new Date(o.createdAt).getTime())
                 ? new Date(o.createdAt).toLocaleString("en-IN")
                 : "Recently";
               const itemsList = Array.isArray(o?.items) ? o.items : [];
 
               return (
-                <div key={o?.id || Math.random().toString()} className="rounded-3xl border bg-card p-6">
+                <div key={o?.id || `order-${index}`} className="rounded-3xl border bg-card p-6">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -609,7 +707,12 @@ function Admin() {
                       size="sm"
                       variant="outline"
                       className="rounded-full"
-                      onClick={() => window.open(whatsappLink(settings.whatsappNumber, buildOrderMessage(o)), "_blank")}
+                      onClick={() => {
+                        if (!o) return;
+                        const num = form?.whatsappNumber || settings?.whatsappNumber || WHATSAPP_NUMBER;
+                        const msg = buildOrderMessage(o);
+                        window.open(whatsappLink(num, msg), "_blank");
+                      }}
                     >
                       <MessageCircle className="mr-1.5 h-4 w-4" /> Resend to WhatsApp
                     </Button>
@@ -617,15 +720,16 @@ function Admin() {
                       size="sm"
                       variant="secondary"
                       className="rounded-full"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!orders || !Array.isArray(orders)) return;
                         setOrders(
                           orders.map((x) =>
                             x?.id === o?.id
                               ? { ...x, status: x.status === "new" ? "packed" : x.status === "packed" ? "dispatched" : "new" }
                               : x,
                           ),
-                        )
-                      }
+                        );
+                      }}
                     >
                       Mark next status
                     </Button>
@@ -633,7 +737,10 @@ function Admin() {
                       size="sm"
                       variant="ghost"
                       className="rounded-full text-destructive"
-                      onClick={() => setOrders(orders.filter((x) => x?.id !== o?.id))}
+                      onClick={() => {
+                        if (!orders || !Array.isArray(orders)) return;
+                        setOrders(orders.filter((x) => x?.id !== o?.id));
+                      }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -647,20 +754,56 @@ function Admin() {
             <div className="max-w-xl space-y-4 rounded-3xl border bg-card p-6">
               <div>
                 <Label>WhatsApp number (with country code, digits only)</Label>
-                <Input className="mt-1" value={form.whatsappNumber} onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })} />
+                <Input
+                  className="mt-1"
+                  value={form?.whatsappNumber ?? ""}
+                  onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), whatsappNumber: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Razorpay Key ID (rzp_live_… / rzp_test_…)</Label>
-                <Input className="mt-1" value={form.razorpayKeyId} onChange={(e) => setForm({ ...form, razorpayKeyId: e.target.value })} />
+                <Input
+                  className="mt-1"
+                  value={form?.razorpayKeyId ?? ""}
+                  onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), razorpayKeyId: e.target.value })}
+                />
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   Only the public Key ID goes here. Never paste your Razorpay secret key.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><Label>Shipping fee (₹)</Label><Input type="number" className="mt-1" value={form.shippingFee} onChange={(e) => setForm({ ...form, shippingFee: Number(e.target.value) })} /></div>
-                <div><Label>Free shipping above (₹)</Label><Input type="number" className="mt-1" value={form.freeShippingAbove} onChange={(e) => setForm({ ...form, freeShippingAbove: Number(e.target.value) })} /></div>
+                <div>
+                  <Label>Shipping fee (₹)</Label>
+                  <Input
+                    type="number"
+                    className="mt-1"
+                    value={form?.shippingFee ?? 30}
+                    onChange={(e) =>
+                      setForm({ ...(form ?? DEFAULT_SETTINGS), shippingFee: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Free shipping above (₹)</Label>
+                  <Input
+                    type="number"
+                    className="mt-1"
+                    value={form?.freeShippingAbove ?? 500}
+                    onChange={(e) =>
+                      setForm({ ...(form ?? DEFAULT_SETTINGS), freeShippingAbove: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
               </div>
-              <Button className="rounded-full" onClick={() => { setSettings(form); toast.success("Settings saved"); }}>
+              <Button
+                className="rounded-full"
+                onClick={() => {
+                  if (form) {
+                    setSettings(form);
+                    toast.success("Settings saved");
+                  }
+                }}
+              >
                 <Save className="mr-1.5 h-4 w-4" /> Save settings
               </Button>
             </div>

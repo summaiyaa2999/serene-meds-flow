@@ -102,7 +102,9 @@ function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return (parsed ?? fallback) as T;
   } catch {
     return fallback;
   }
@@ -110,15 +112,26 @@ function read<T>(key: string, fallback: T): T {
 
 function write(key: string, value: unknown) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new CustomEvent("dawaiin:store"));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    window.dispatchEvent(new CustomEvent("dawaiin:store"));
+  } catch (err) {
+    console.error("Failed to write to localStorage:", err);
+  }
 }
 
 export const store = {
-  getSettings: () => ({ ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) }),
+  getSettings: (): Settings => {
+    const saved = read<Partial<Settings>>(KEYS.settings, {});
+    const safeSaved = typeof saved === "object" && saved !== null ? saved : {};
+    return { ...DEFAULT_SETTINGS, ...safeSaved };
+  },
   setSettings: (s: Settings) => write(KEYS.settings, s),
-  getOrders: () => read<Order[]>(KEYS.orders, []),
-  setOrders: (o: Order[]) => write(KEYS.orders, o),
+  getOrders: () => {
+    const res = read<Order[]>(KEYS.orders, []);
+    return Array.isArray(res) ? res : [];
+  },
+  setOrders: (o: Order[]) => write(KEYS.orders, Array.isArray(o) ? o : []),
   getCart: () => {
     const raw = read<unknown>(KEYS.cart, []);
     if (!Array.isArray(raw)) return [];
@@ -143,8 +156,12 @@ export const store = {
 
     if (validLines.length === 0) {
       if (typeof window !== "undefined") {
-        window.localStorage.removeItem(KEYS.cart);
-        window.dispatchEvent(new CustomEvent("dawaiin:store"));
+        try {
+          window.localStorage.removeItem(KEYS.cart);
+          window.dispatchEvent(new CustomEvent("dawaiin:store"));
+        } catch {
+          /* ignore */
+        }
       }
     } else {
       write(KEYS.cart, validLines);
@@ -152,8 +169,11 @@ export const store = {
   },
 };
 
-export const inr = (n: number) =>
-  "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+export const inr = (n: number | string | null | undefined) => {
+  const parsed = Number(n);
+  const num = isNaN(parsed) ? 0 : parsed;
+  return "₹" + num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+};
 
 export type ReceiptParams = {
   orderId: string;
@@ -205,34 +225,48 @@ export function buildWhatsAppDirectUrl(phone: string, formattedMessage: string):
 }
 
 export function buildOrderMessage(order: Order) {
-  const lines = order.items
+  if (!order) return "";
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const lines = items
     .map(
       (i, idx) =>
-        `${idx + 1}. ${i.name} (${i.pack}) x${i.qty} — ${inr(i.price * i.qty)}`,
+        `${idx + 1}. ${i?.name || "Item"} (${i?.pack || ""}) x${i?.qty || 1} — ${inr((i?.price || 0) * (i?.qty || 1))}`,
     )
     .join("\n");
 
+  const createdDate = order?.createdAt ? new Date(order.createdAt) : new Date();
+  const dateStr = isNaN(createdDate.getTime())
+    ? new Date().toLocaleString("en-IN")
+    : createdDate.toLocaleString("en-IN");
+
+  const custName = order?.customer?.name || "Customer";
+  const custAddr = order?.customer?.address || "";
+  const custCity = order?.customer?.city || "";
+  const custPin = order?.customer?.pincode || "";
+  const custPhone = order?.customer?.phone || "";
+  const custNotes = order?.customer?.notes || "";
+
   return [
     "*DAWAIIN — NEW ORDER*",
-    `Order ID: ${order.id}`,
-    `Date: ${new Date(order.createdAt).toLocaleString("en-IN")}`,
+    `Order ID: ${order?.id || ""}`,
+    `Date: ${dateStr}`,
     "",
     "*SHIP TO*",
-    order.customer.name,
-    order.customer.address,
-    `${order.customer.city} - ${order.customer.pincode}`,
-    `Phone: ${order.customer.phone}`,
-    order.customer.notes ? `Note: ${order.customer.notes}` : "",
+    custName,
+    custAddr,
+    custCity || custPin ? `${custCity} - ${custPin}` : "",
+    custPhone ? `Phone: ${custPhone}` : "",
+    custNotes ? `Note: ${custNotes}` : "",
     "",
     "*ITEMS*",
     lines,
     "",
-    `Subtotal: ${inr(order.subtotal)}`,
-    `Shipping: ${order.shipping === 0 ? "FREE" : inr(order.shipping)}`,
-    `*TOTAL: ${inr(order.total)}*`,
+    `Subtotal: ${inr(order?.subtotal || 0)}`,
+    `Shipping: ${order?.shipping === 0 ? "FREE" : inr(order?.shipping || 0)}`,
+    `*TOTAL: ${inr(order?.total || 0)}*`,
     "",
-    `Payment: ${order.payment === "razorpay" ? "PAID ONLINE (Razorpay)" : "CASH ON DELIVERY"}`,
-    order.paymentId ? `Payment ID: ${order.paymentId}` : "",
+    `Payment: ${order?.payment === "razorpay" ? "PAID ONLINE (Razorpay)" : "CASH ON DELIVERY"}`,
+    order?.paymentId ? `Payment ID: ${order.paymentId}` : "",
     "",
     "— Please print & paste this slip on the parcel.",
   ]
