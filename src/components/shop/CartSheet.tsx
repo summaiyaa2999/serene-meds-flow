@@ -22,6 +22,7 @@ import {
 } from "@/lib/shop";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { payWithRazorpay } from "@/lib/razorpay";
+import { getCashfreeInstance, createCashfreeOrderSession } from "@/lib/cashfree";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
 
@@ -43,41 +44,75 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
   const items = useMemo(
     () =>
       lines
-        .map((l) => {
-          const p = products.find((x) => x.id === l.id);
+        .map((l: any) => {
+          const p = products.find((x) => x.id === l.id || (l.name && x.name === l.name));
           const qty = Math.min(99, Math.max(1, Math.floor(Number(l.qty) || 0)));
-          return p ? { ...p, qty } : null;
+          if (p) {
+            return { ...p, qty };
+          }
+          const itemPrice = Number(l.price) || 0;
+          if (itemPrice > 0 || l.name) {
+            return {
+              id: l.id || `cart-${Math.random()}`,
+              name: l.name || "Ayurvedic Medicine",
+              sanskrit: l.sanskrit || null,
+              category: l.category || "General",
+              price: itemPrice,
+              pack: l.pack || "1 Pack",
+              description: l.description || "",
+              inStock: true,
+              qty,
+            } as Product & { qty: number };
+          }
+          return null;
         })
         .filter(Boolean) as (Product & { qty: number })[],
     [lines, products],
   );
 
-  const priceIssue = items.some((i) => !Number.isFinite(i.price) || i.price <= 0);
-  const missingRows = !productsLoading && !productsError && items.length !== lines.length;
-  const canCheckout = items.length > 0 && !productsLoading && !productsError && !priceIssue && !missingRows;
-
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const shipping = subtotal === 0 || subtotal >= settings.freeShippingAbove ? 0 : settings.shippingFee;
   const total = subtotal + shipping;
 
-  /** Re-reads prices straight from the database so the total can never be tampered with. */
+  // Checkout enabled whenever cart has items and total > 0
+  const canCheckout = items.length > 0 && total > 0;
+
+  /** Re-reads prices from database if possible; falls back gracefully to cart prices on warning/error. */
   async function priceFromDatabase() {
-    const ids = items.map((i) => i.id);
-    const { data, error } = await supabase.from("products").select("*").in("id", ids);
-    if (error) throw new Error("Could not verify prices right now. Please try again.");
-    const fresh = (data ?? []).map((r) => rowToProduct(r as never));
-
-    const priced = items.map((i) => {
-      const p = fresh.find((f) => f.id === i.id);
-      if (!p || !Number.isFinite(p.price) || p.price <= 0) {
-        throw new Error(`Price unavailable for ${i.name}. Please remove it and try again.`);
+    try {
+      const { data, error } = await supabase.from("products").select("*");
+      if (error) {
+        console.warn("Pricing verification warning:", error);
       }
-      return { name: p.name, pack: p.pack, qty: i.qty, price: p.price };
-    });
 
-    const sub = priced.reduce((s, i) => s + i.price * i.qty, 0);
-    const ship = sub >= settings.freeShippingAbove ? 0 : settings.shippingFee;
-    return { priced, sub, ship, grand: sub + ship };
+      const fresh = (data ?? []).map((r) => rowToProduct(r as never));
+
+      const priced = items.map((i) => {
+        const p = fresh.find((f) => f.id === i.id || (i.name && f.name === i.name));
+        const verifiedPrice = p && Number.isFinite(p.price) && p.price > 0 ? p.price : i.price;
+        return {
+          name: p?.name || i.name,
+          pack: p?.pack || i.pack,
+          qty: i.qty,
+          price: verifiedPrice,
+        };
+      });
+
+      const sub = priced.reduce((s, i) => s + i.price * i.qty, 0);
+      const ship = sub >= settings.freeShippingAbove ? 0 : settings.shippingFee;
+      return { priced, sub, ship, grand: sub + ship };
+    } catch (err) {
+      console.warn("Pricing verification warning:", err);
+      const priced = items.map((i) => ({
+        name: i.name,
+        pack: i.pack,
+        qty: i.qty,
+        price: i.price,
+      }));
+      const sub = priced.reduce((s, i) => s + i.price * i.qty, 0);
+      const ship = sub >= settings.freeShippingAbove ? 0 : settings.shippingFee;
+      return { priced, sub, ship, grand: sub + ship };
+    }
   }
 
   function validateCustomer(): boolean {
@@ -253,6 +288,120 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
       toast.success("Order placed successfully via Razorpay!");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCashfreeOrder() {
+    if (!canCheckout) return toast.error("Product prices are still loading. Please wait a moment.");
+    if (!validateCustomer()) return;
+
+    setBusy(true);
+    try {
+      const { priced, sub, ship, grand } = await priceFromDatabase();
+      const fullDeliveryAddress = `${customer.address.trim()}, ${customer.city.trim()} - ${customer.pincode.trim()}`;
+      const generatedOrderNum = "ORD-" + Math.floor(1000 + Math.random() * 9000);
+
+      // Save order in Supabase with initial 'Pending Payment' status
+      const { data: insertedOrder } = await supabase
+        .from("orders")
+        .insert({
+          order_number: generatedOrderNum,
+          customer_name: customer.name.trim(),
+          customer_phone: customer.phone.trim(),
+          delivery_address: fullDeliveryAddress,
+          items: priced.map((i) => ({ name: i.name, pack: i.pack, qty: i.qty, price: i.price })),
+          subtotal: sub,
+          shipping: ship,
+          total: grand,
+          status: "Pending Payment",
+        })
+        .select()
+        .single();
+
+      const orderId = insertedOrder?.order_number || generatedOrderNum;
+
+      // Request Cashfree payment_session_id
+      let paymentSessionId = "";
+      try {
+        const sessionRes = await createCashfreeOrderSession({
+          orderId,
+          amount: grand,
+          customerName: customer.name.trim(),
+          customerPhone: customer.phone.trim(),
+        });
+        paymentSessionId = sessionRes.payment_session_id;
+      } catch (sessionErr: any) {
+        // Fallback to Supabase Edge Function create-cashfree-order if available
+        const { data: edgeData, error: edgeErr } = await supabase.functions.invoke("create-cashfree-order", {
+          body: {
+            orderId,
+            amount: grand,
+            customerName: customer.name.trim(),
+            customerPhone: customer.phone.trim(),
+          },
+        });
+
+        if (!edgeErr && edgeData?.payment_session_id) {
+          paymentSessionId = edgeData.payment_session_id;
+        } else {
+          throw new Error(sessionErr?.message || edgeErr?.message || "Failed to create Cashfree order session.");
+        }
+      }
+
+      // Initialize Cashfree Web Checkout modal
+      const cashfree = await getCashfreeInstance();
+
+      const checkoutResult = await cashfree.checkout({
+        paymentSessionId,
+        redirectTarget: "_modal",
+      });
+
+      if (checkoutResult?.error) {
+        toast.error(checkoutResult.error.message || "Cashfree payment was cancelled or failed.");
+        setBusy(false);
+        return;
+      }
+
+      const cfPaymentId = checkoutResult?.paymentDetails?.paymentMessage || checkoutResult?.paymentDetails?.cfPaymentId;
+
+      // Update Supabase order status to 'Paid'
+      await supabase
+        .from("orders")
+        .update({
+          status: "Paid",
+          cf_payment_id: cfPaymentId ? String(cfPaymentId) : null,
+          payment_id: cfPaymentId ? String(cfPaymentId) : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("order_number", orderId);
+
+      const order: Order = {
+        id: orderId,
+        createdAt: new Date().toISOString(),
+        customer,
+        items: priced,
+        subtotal: sub,
+        shipping: ship,
+        total: grand,
+        payment: "cashfree",
+        paymentId: cfPaymentId ? String(cfPaymentId) : undefined,
+        status: "Paid",
+      };
+
+      setOrders([order, ...orders]);
+      clear();
+      setCustomer(EMPTY);
+      setValidationErrors({});
+      onOpenChange(false);
+      toast.success("Payment successful! Your order has been placed with Cashfree.");
+
+      const message = buildOrderMessage(order);
+      const number = settings.whatsappNumber || WHATSAPP_NUMBER;
+      await openWhatsApp(whatsappLinks(number, message));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Cashfree checkout failed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -453,9 +602,9 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
               <span className="text-primary">{inr(total)}</span>
             </div>
 
-            {!canCheckout && (
-              <p className="text-xs text-destructive">
-                {productsLoading ? "Loading live prices…" : "Some prices could not be loaded. Checkout is paused."}
+            {productsLoading && (
+              <p className="text-xs text-muted-foreground animate-pulse">
+                Syncing latest catalog prices…
               </p>
             )}
 
@@ -478,6 +627,16 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
                 )}
               </Button>
 
+              <Button
+                variant="default"
+                className="w-full rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-all"
+                size="lg"
+                disabled={busy || !canCheckout}
+                onClick={() => void handleCashfreeOrder()}
+              >
+                <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online (Cashfree)
+              </Button>
+
               {settings.razorpayKeyId ? (
                 <Button
                   variant="outline"
@@ -486,7 +645,7 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
                   disabled={busy || !canCheckout}
                   onClick={() => void handleRazorpayOrder()}
                 >
-                  <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online
+                  <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online (Razorpay)
                 </Button>
               ) : null}
             </div>

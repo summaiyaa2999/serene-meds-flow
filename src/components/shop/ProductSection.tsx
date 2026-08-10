@@ -174,7 +174,7 @@ export function ProductSection() {
                 product={p}
                 whatsappNumber={settings.whatsappNumber}
                 onAdd={() => {
-                  add(p.id);
+                  add(p.id, 1, { name: p.name, price: p.price, pack: p.pack, category: p.category });
                   toast.success(`${p.name} added to cart`);
                 }}
               />

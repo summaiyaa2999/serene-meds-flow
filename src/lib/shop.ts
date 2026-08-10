@@ -12,7 +12,7 @@ export type Product = {
   sortOrder?: number;
 };
 
-export type CartLine = { id: string; qty: number };
+export type CartLine = { id: string; qty: number; name?: string; price?: number; pack?: string; category?: string };
 
 export type Customer = {
   name: string;

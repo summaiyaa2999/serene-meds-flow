@@ -35,14 +35,14 @@ export function useCart() {
   // Quantities are always whole, positive and capped — never trust a stray value.
   const sanitize = (qty: number) => Math.min(99, Math.max(0, Math.floor(Number(qty) || 0)));
 
-  const add = useCallback((id: string, qty = 1) => {
+  const add = useCallback((id: string, qty = 1, productDetails?: { name?: string; price?: number; pack?: string; category?: string }) => {
     const amount = sanitize(qty) || 1;
     const current = store.getCart();
     const found = current.find((l) => l.id === id);
     store.setCart(
       found
-        ? current.map((l) => (l.id === id ? { ...l, qty: sanitize(l.qty + amount) || 1 } : l))
-        : [...current, { id, qty: amount }],
+        ? current.map((l) => (l.id === id ? { ...l, ...productDetails, qty: sanitize(l.qty + amount) || 1 } : l))
+        : [...current, { id, qty: amount, ...productDetails }],
     );
   }, []);
 
