@@ -4,6 +4,7 @@ import { Menu, ShoppingBag, Leaf, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useCart, useSettings } from "@/hooks/use-shop";
+import { WHATSAPP_NUMBER } from "@/lib/shop";
 
 const NAV = [
   { label: "Home", href: "#home" },
@@ -14,6 +15,9 @@ const NAV = [
 
 export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
   const { lines, items: rawItems } = useCart();
+  const { settings } = useSettings();
+  const phone = settings?.whatsappNumber || WHATSAPP_NUMBER;
+
   const items = rawItems || lines || [];
   const cartCount =
     items.length > 0
@@ -108,8 +112,8 @@ export function SiteHeader({ onCartOpen }: { onCartOpen: () => void }) {
                   ))}
                 </nav>
                 <div className="mt-10 space-y-3 border-t pt-6 text-sm text-muted-foreground">
-                  <a className="flex items-center gap-2" href={`tel:+${settings.whatsappNumber}`}>
-                    <Phone className="h-4 w-4" /> +{settings.whatsappNumber}
+                  <a className="flex items-center gap-2" href={`tel:+${phone}`}>
+                    <Phone className="h-4 w-4" /> +{phone}
                   </a>
                   <Link to="/admin" onClick={() => setOpen(false)} className="block text-xs uppercase tracking-widest">
                     Admin panel
