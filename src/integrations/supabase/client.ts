@@ -32,7 +32,7 @@ function createSupabaseClient() {
     import.meta.env.VITE_SUPABASE_URL ||
     import.meta.env.SUPABASE_URL ||
     (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL || process.env?.SUPABASE_URL : undefined) ||
-    "https://ptlvzsxqkwjynbexkpe.supabase.co";
+    "https://xnkmnhyionnldgvaiprj.supabase.co";
 
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -45,7 +45,7 @@ function createSupabaseClient() {
         process.env?.SUPABASE_PUBLISHABLE_KEY ||
         process.env?.SUPABASE_ANON_KEY
       : undefined) ||
-    "placeholder";
+    "sb_publishable_xVFb2j9WqShVlzDhfYPzbA_25ijOqLt";
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
