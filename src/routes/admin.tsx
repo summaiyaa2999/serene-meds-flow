@@ -159,22 +159,14 @@ function AuthGate({ onReady }: { onReady: () => void }) {
             });
       const { data, error } = await fn;
       setBusy(false);
-      if (error) {
-        const msg = error.message?.includes("Failed to fetch") || error.message?.includes("fetch")
-          ? "Unable to connect to authentication server. Please check your internet connection or Supabase configuration."
-          : error.message;
-        return toast.error(msg);
-      }
+      if (error) return toast.error(error.message);
       if (mode === "signup" && !data?.session) {
         return toast.success("Account created — check your email to confirm, then sign in.");
       }
       onReady();
     } catch (err: any) {
       setBusy(false);
-      const msg = err?.message?.includes("Failed to fetch") || err?.message?.includes("fetch")
-        ? "Unable to connect to authentication server. Please check your internet connection or Supabase configuration."
-        : err?.message || "Authentication failed.";
-      toast.error(msg);
+      toast.error(err?.message || "Authentication failed.");
     }
   }
 

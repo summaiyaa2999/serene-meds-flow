@@ -28,13 +28,13 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 
 function createSupabaseClient() {
-  const supabaseUrl =
+  const SUPABASE_URL =
     import.meta.env.VITE_SUPABASE_URL ||
     import.meta.env.SUPABASE_URL ||
     (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL || process.env?.SUPABASE_URL : undefined) ||
-    '';
+    "https://ptlvzsxqkwjynbexkpe.supabase.co";
 
-  const supabaseKey =
+  const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     import.meta.env.VITE_SUPABASE_ANON_KEY ||
     import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -45,22 +45,11 @@ function createSupabaseClient() {
         process.env?.SUPABASE_PUBLISHABLE_KEY ||
         process.env?.SUPABASE_ANON_KEY
       : undefined) ||
-    '';
+    "placeholder";
 
-  if (!supabaseUrl || !supabaseKey) {
-    const missing = [
-      ...(!supabaseUrl ? ['SUPABASE_URL'] : []),
-      ...(!supabaseKey ? ['SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY'] : []),
-    ];
-    console.warn(`[Supabase] Missing Supabase environment variable(s): ${missing.join(', ')}.`);
-  }
-
-  const validUrl = supabaseUrl || 'https://placeholder.supabase.co';
-  const validKey = supabaseKey || 'placeholder';
-
-  return createClient<Database>(validUrl, validKey, {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
-      fetch: createSupabaseFetch(validKey),
+      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
     },
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
