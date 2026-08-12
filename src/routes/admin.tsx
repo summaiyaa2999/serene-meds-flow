@@ -161,27 +161,31 @@ function AuthGate({ onReady }: { onReady: () => void }) {
       setBusy(false);
       if (error) {
         const msg = error.message || "";
+        const lowerMsg = msg.toLowerCase();
         if (
-          msg.toLowerCase().includes("failed to fetch") ||
-          msg.toLowerCase().includes("networkerror") ||
-          msg.toLowerCase().includes("load failed") ||
-          msg.toLowerCase().includes("invalid api key")
+          lowerMsg.includes("failed to fetch") ||
+          lowerMsg.includes("networkerror") ||
+          lowerMsg.includes("load failed")
         ) {
           return toast.error("Unable to connect to authentication server. Please check your internet connection.");
+        }
+        if (lowerMsg.includes("invalid login credentials")) {
+          return toast.error("Invalid email or password. If you have not created your admin account yet, click 'CREATE ADMIN ACCOUNT' below.");
         }
         return toast.error(msg);
       }
       if (mode === "signup" && !data?.session) {
-        return toast.success("Account created — check your email to confirm, then sign in.");
+        return toast.success("Account created — check your email inbox to confirm your account, then sign in.");
       }
       onReady();
     } catch (err: any) {
       setBusy(false);
       const msg = err?.message || "";
+      const lowerMsg = msg.toLowerCase();
       if (
-        msg.toLowerCase().includes("failed to fetch") ||
-        msg.toLowerCase().includes("networkerror") ||
-        msg.toLowerCase().includes("load failed")
+        lowerMsg.includes("failed to fetch") ||
+        lowerMsg.includes("networkerror") ||
+        lowerMsg.includes("load failed")
       ) {
         toast.error("Unable to connect to authentication server. Please check your internet connection.");
       } else {
