@@ -166,7 +166,12 @@ function AuthGate({ onReady }: { onReady: () => void }) {
       onReady();
     } catch (err: any) {
       setBusy(false);
-      toast.error(err?.message || "Authentication failed.");
+      const msg = err?.message || "";
+      if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror") || msg.toLowerCase().includes("load failed")) {
+        toast.error("Unable to reach the authentication server. Please check your internet connection and try again.");
+      } else {
+        toast.error(msg || "Authentication failed. Please try again.");
+      }
     }
   }
 
@@ -212,12 +217,10 @@ function AuthGate({ onReady }: { onReady: () => void }) {
 
 function Admin() {
   const { settings, setSettings } = useSettings();
-  const { products, refresh, loading: productsLoading, error: productsError } = useProducts();
   const { orders, setOrders } = useOrders();
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>(BLANK);
   const [form, setForm] = useState<Settings>(settings ?? DEFAULT_SETTINGS);
   const [status, setStatus] = useState<"loading" | "out" | "notadmin" | "in">("loading");
 
@@ -298,6 +301,14 @@ function Admin() {
         setStatus("out");
         return;
       }
+      // Try getSession first (uses cached local session, never throws on network issues)
+      // then validate with getUser only if we have a session
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        setStatus("out");
+        return;
+      }
+
       const { data, error: userError } = await supabase.auth.getUser();
       if (userError || !data?.user) {
         setStatus("out");
@@ -327,8 +338,10 @@ function Admin() {
       const isAdmin = isAllowedEmail || hasAdminRole;
       setStatus(isAdmin ? "in" : "notadmin");
       if (isAdmin) void fetchDbOrders();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Auth check error:", err);
+      // Network errors during auth check shouldn't show a toast —
+      // just fall back to showing the login screen.
       setStatus("out");
     }
   }, [fetchDbOrders]);
@@ -357,6 +370,77 @@ function Admin() {
     };
   }, [check]);
 
+  useEffect(() => {
+    if (settings) {
+      setForm(settings);
+    }
+  }, [settings]);
+
+  if (status === "loading") {
+    return <div className="grid min-h-screen place-items-center bg-cream text-muted-foreground">Loading…</div>;
+  }
+
+  if (status === "out") return <AuthGate onReady={() => void check()} />;
+
+  if (status === "in") return <AdminAuthenticatedContent settings={settings} setSettings={setSettings} orders={orders} setOrders={setOrders} dbOrders={dbOrders} ordersLoading={ordersLoading} ordersError={ordersError} fetchDbOrders={fetchDbOrders} form={form} setForm={setForm} />;
+
+  if (status === "notadmin") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-cream px-5 text-center">
+        <div className="glass max-w-sm rounded-3xl p-8">
+          <h1 className="font-display text-3xl">No admin access</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This account is not an administrator of the store.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-6 rounded-full"
+            onClick={() => void supabase?.auth?.signOut()}
+          >
+            Sign out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // This state should not be reached — handled above
+  return (
+    <div className="grid min-h-screen place-items-center bg-cream px-5 text-center">
+      <div className="glass max-w-sm rounded-3xl p-8">
+        <h1 className="font-display text-3xl">No admin access</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          This account is not an administrator of the store.
+        </p>
+        <Button
+          variant="outline"
+          className="mt-6 rounded-full"
+          onClick={() => void supabase?.auth?.signOut()}
+        >
+          Sign out
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function AdminAuthenticatedContent({
+  settings, setSettings, orders, setOrders, dbOrders, ordersLoading, ordersError, fetchDbOrders, form, setForm,
+}: {
+  settings: Settings | null;
+  setSettings: (s: Settings) => void;
+  orders: Order[];
+  setOrders: (o: Order[]) => void;
+  dbOrders: Order[];
+  ordersLoading: boolean;
+  ordersError: string | null;
+  fetchDbOrders: () => Promise<void>;
+  form: Settings;
+  setForm: (s: Settings) => void;
+}) {
+  const { products, refresh, loading: productsLoading, error: productsError } = useProducts();
+  const [draft, setDraft] = useState<Draft>(BLANK);
+
   const allOrders = useMemo(() => {
     const map = new Map<string, Order>();
     const safeLocalOrders = Array.isArray(orders) ? orders : [];
@@ -375,12 +459,6 @@ function Admin() {
       return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
     });
   }, [orders, dbOrders]);
-
-  useEffect(() => {
-    if (settings) {
-      setForm(settings);
-    }
-  }, [settings]);
 
   async function addProduct() {
     if (!draft.name.trim() || !draft.price) return toast.error("Name and price are required");
@@ -441,32 +519,6 @@ function Admin() {
       console.error("Error deleting product:", err);
       toast.error(err?.message || "Failed to delete product");
     }
-  }
-
-  if (status === "loading") {
-    return <div className="grid min-h-screen place-items-center bg-cream text-muted-foreground">Loading…</div>;
-  }
-
-  if (status === "out") return <AuthGate onReady={() => void check()} />;
-
-  if (status === "notadmin") {
-    return (
-      <div className="grid min-h-screen place-items-center bg-cream px-5 text-center">
-        <div className="glass max-w-sm rounded-3xl p-8">
-          <h1 className="font-display text-3xl">No admin access</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            This account is not an administrator of the store.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-6 rounded-full"
-            onClick={() => void supabase?.auth?.signOut()}
-          >
-            Sign out
-          </Button>
-        </div>
-      </div>
-    );
   }
 
   const safeProductsCount = Array.isArray(products) ? products.length : 0;
