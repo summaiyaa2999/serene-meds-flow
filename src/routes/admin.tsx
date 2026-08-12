@@ -159,7 +159,18 @@ function AuthGate({ onReady }: { onReady: () => void }) {
             });
       const { data, error } = await fn;
       setBusy(false);
-      if (error) return toast.error(error.message);
+      if (error) {
+        const msg = error.message || "";
+        if (
+          msg.toLowerCase().includes("failed to fetch") ||
+          msg.toLowerCase().includes("networkerror") ||
+          msg.toLowerCase().includes("load failed") ||
+          msg.toLowerCase().includes("invalid api key")
+        ) {
+          return toast.error("Unable to connect to authentication server. Please check your internet connection.");
+        }
+        return toast.error(msg);
+      }
       if (mode === "signup" && !data?.session) {
         return toast.success("Account created — check your email to confirm, then sign in.");
       }
@@ -167,8 +178,12 @@ function AuthGate({ onReady }: { onReady: () => void }) {
     } catch (err: any) {
       setBusy(false);
       const msg = err?.message || "";
-      if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror") || msg.toLowerCase().includes("load failed")) {
-        toast.error("Unable to reach the authentication server. Please check your internet connection and try again.");
+      if (
+        msg.toLowerCase().includes("failed to fetch") ||
+        msg.toLowerCase().includes("networkerror") ||
+        msg.toLowerCase().includes("load failed")
+      ) {
+        toast.error("Unable to connect to authentication server. Please check your internet connection.");
       } else {
         toast.error(msg || "Authentication failed. Please try again.");
       }

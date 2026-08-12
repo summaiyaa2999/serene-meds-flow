@@ -45,7 +45,7 @@ function createSupabaseClient() {
         process.env?.SUPABASE_PUBLISHABLE_KEY ||
         process.env?.SUPABASE_ANON_KEY
       : undefined) ||
-    "sb_publishable__kFuWFXYxKss6eD9zSqT_A_U8jZ5L3U";
+    "sb_publishable_xVFb2j9WqShVlzDhfYPzbA_25ijOqLt";
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
