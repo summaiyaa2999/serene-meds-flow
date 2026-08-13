@@ -160,6 +160,13 @@ function AuthGate({ onReady }: { onReady: () => void }) {
       const { data, error } = await fn;
       setBusy(false);
       if (error) {
+        console.error("[Admin Auth] Supabase auth error:", {
+          message: error.message,
+          name: error.name,
+          status: (error as any).status,
+          code: (error as any).code,
+          stack: error.stack,
+        });
         const msg = error.message || "";
         const lowerMsg = msg.toLowerCase();
         if (
@@ -180,6 +187,14 @@ function AuthGate({ onReady }: { onReady: () => void }) {
       onReady();
     } catch (err: any) {
       setBusy(false);
+      console.error("[Admin Auth] Exception during auth:", {
+        message: err?.message,
+        name: err?.name,
+        status: err?.status,
+        code: err?.code,
+        stack: err?.stack,
+        raw: err,
+      });
       const msg = err?.message || "";
       const lowerMsg = msg.toLowerCase();
       if (

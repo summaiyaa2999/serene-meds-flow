@@ -7,21 +7,37 @@ function isNewSupabaseApiKey(value: string): boolean {
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
+  const isNewKey = isNewSupabaseApiKey(supabaseKey);
   return (input, init) => {
-    const headers = new Headers(
-      typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
-    );
+    const headers = new Headers();
 
+    // 1. Copy headers from the Request object if one was provided
+    if (typeof Request !== 'undefined' && input instanceof Request) {
+      input.headers.forEach((value, key) => headers.set(key, value));
+    }
+
+    // 2. Merge in any headers from init (these take precedence)
     if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+      const initHeaders = init.headers instanceof Headers
+        ? init.headers
+        : new Headers(init.headers as HeadersInit);
+      initHeaders.forEach((value, key) => headers.set(key, value));
     }
 
-    // New Supabase API keys are opaque strings, not bearer JWTs.
-    if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
-      headers.delete('Authorization');
+    // 3. For new opaque API keys, never send the key itself as a Bearer token.
+    //    The key must only go in the `apikey` header.
+    if (isNewKey) {
+      const auth = headers.get('Authorization');
+      if (auth === `Bearer ${supabaseKey}`) {
+        headers.delete('Authorization');
+      }
     }
 
-    headers.set('apikey', supabaseKey);
+    // 4. Always ensure apikey header is present
+    if (!headers.has('apikey')) {
+      headers.set('apikey', supabaseKey);
+    }
+
     return fetch(input, { ...init, headers });
   };
 }
@@ -46,9 +62,16 @@ function createSupabaseClient() {
       : undefined) ||
     "sb_publishable_xVFb2j9WqShVlzDhfYPzbA_25ijOqLt";
 
+  const customFetch = createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY);
+
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
-      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+      fetch: customFetch,
+      headers: {
+        // For new-format keys, set the apikey header explicitly.
+        // This ensures it's always present in auth client headers too.
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
     },
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
