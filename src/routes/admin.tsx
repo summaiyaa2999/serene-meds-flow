@@ -8,6 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useOrders, useSettings } from "@/hooks/use-shop";
 import { useProducts } from "@/hooks/use-products";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +59,7 @@ export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
       { title: "Admin Panel — Dawaiin Ayurvedic Apothecary" },
-      { name: "description", content: "Manage Dawaiin products, orders, WhatsApp dispatch slips and Razorpay settings." },
+      { name: "description", content: "Manage Dawaiin products, orders, WhatsApp dispatch slips and Cashfree settings." },
       { property: "og:title", content: "Admin Panel — Dawaiin" },
       { property: "og:description", content: "Manage products, orders and payment settings for the Dawaiin store." },
       { property: "og:type", content: "website" },
@@ -95,7 +102,7 @@ function printSlip(order: Order) {
         <tr><td>Shipping</td><td class="r">${order?.shipping === 0 ? "FREE" : inr(order?.shipping || 0)}</td></tr>
         <tr><td><strong>TOTAL</strong></td><td class="r"><strong>${inr(order?.total || 0)}</strong></td></tr>
       </table>
-      <p class="m">${order?.payment === "razorpay" ? "PAID ONLINE · " + (order?.paymentId ?? "") : "CASH ON DELIVERY"}</p>
+      <p class="m">${order?.payment === "cashfree" ? "PAID ONLINE (Cashfree) · " + (order?.paymentId ?? "") : order?.payment === "razorpay" ? "PAID ONLINE (Razorpay) · " + (order?.paymentId ?? "") : "CASH ON DELIVERY"}</p>
     </body></html>`;
     const w = window.open("", "_blank", "width=520,height=720");
     if (!w) return;
@@ -138,7 +145,7 @@ function AuthGate({ onReady }: { onReady: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
 
   async function submit() {
     setBusy(true);
@@ -177,7 +184,10 @@ function AuthGate({ onReady }: { onReady: () => void }) {
           return toast.error("Unable to connect to authentication server. Please check your internet connection.");
         }
         if (lowerMsg.includes("invalid login credentials")) {
-          return toast.error("Invalid email or password. If you have not created your admin account yet, click 'CREATE ADMIN ACCOUNT' below.");
+          return toast.error("Invalid email or password.");
+        }
+        if (lowerMsg.includes("email not confirmed")) {
+          return toast.error("Please check your email and confirm your account before signing in.");
         }
         return toast.error(msg);
       }
@@ -209,13 +219,46 @@ function AuthGate({ onReady }: { onReady: () => void }) {
     }
   }
 
+  async function resetPassword() {
+    if (!email.trim()) {
+      return toast.error("Please enter your email address.");
+    }
+    setBusy(true);
+    try {
+      if (!supabase?.auth) {
+        toast.error("Authentication service unavailable.");
+        setBusy(false);
+        return;
+      }
+      const redirectOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${redirectOrigin}/admin`,
+      });
+      setBusy(false);
+      if (error) {
+        console.error("[Admin Auth] Password reset error:", error);
+        return toast.error(error.message || "Failed to send password reset email.");
+      }
+      toast.success("Password reset email sent! Check your inbox.");
+      setMode("signin");
+    } catch (err: any) {
+      setBusy(false);
+      console.error("[Admin Auth] Exception during password reset:", err);
+      toast.error(err?.message || "Failed to send password reset email.");
+    }
+  }
+
   return (
     <div className="grid min-h-screen place-items-center bg-cream px-5">
       <div className="glass w-full max-w-sm rounded-3xl p-8 text-center">
         <Lock className="mx-auto h-6 w-6 text-primary" />
         <h1 className="mt-4 font-display text-3xl">Admin access</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {mode === "signin" ? "Sign in to manage the store." : "Create the store admin account."}
+          {mode === "signin"
+            ? "Sign in to manage the store."
+            : mode === "signup"
+            ? "Create the store admin account."
+            : "Reset your password."}
         </p>
         <Input
           type="email"
@@ -224,17 +267,31 @@ function AuthGate({ onReady }: { onReady: () => void }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <Input
-          type="password"
-          placeholder="Password"
-          className="mt-3"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void submit()}
-        />
-        <Button className="mt-4 w-full rounded-full" disabled={busy} onClick={() => void submit()}>
-          {mode === "signin" ? "Sign in" : "Create account"}
+        {mode !== "reset" && (
+          <Input
+            type="password"
+            placeholder="Password"
+            className="mt-3"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void submit()}
+          />
+        )}
+        <Button
+          className="mt-4 w-full rounded-full"
+          disabled={busy}
+          onClick={() => void (mode === "reset" ? resetPassword() : submit())}
+        >
+          {busy ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset email"}
         </Button>
+        {mode === "signin" && (
+          <button
+            className="mt-3 block w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setMode("reset")}
+          >
+            Forgot password?
+          </button>
+        )}
         <button
           className="mt-4 block w-full text-xs uppercase tracking-widest text-muted-foreground"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
@@ -312,7 +369,7 @@ function Admin() {
               subtotal: Number(row.subtotal) || 0,
               shipping: Number(row.shipping) || 0,
               total: Number(row.total) || 0,
-              payment: (row as any).payment === "razorpay" ? "razorpay" : "cod",
+              payment: (row as any).payment === "cashfree" ? "cashfree" : (row as any).payment === "razorpay" ? "razorpay" : "cod",
               paymentId: row.payment_id ? String(row.payment_id) : undefined,
               status: (row.status as any) || "new",
             };
@@ -371,7 +428,10 @@ function Admin() {
 
       const isAdmin = isAllowedEmail || hasAdminRole;
       setStatus(isAdmin ? "in" : "notadmin");
-      if (isAdmin) void fetchDbOrders();
+      if (isAdmin) {
+        void fetchDbOrders();
+        void fetchSettings();
+      }
     } catch (err: any) {
       console.error("Auth check error:", err);
       // Network errors during auth check shouldn't show a toast —
@@ -403,6 +463,36 @@ function Admin() {
       }
     };
   }, [check]);
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("settings")
+        .select("*")
+        .eq("id", "default")
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Notice loading settings:", error.message);
+        return;
+      }
+
+      if (data) {
+        const loaded: Settings = {
+          whatsappNumber: data.whatsapp_number || DEFAULT_SETTINGS.whatsappNumber,
+          cashfreeAppId: data.cashfree_app_id || "",
+          cashfreeMode: (data.cashfree_mode?.toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "SANDBOX") as "SANDBOX" | "PRODUCTION",
+          shippingFee: Number(data.shipping_fee) ?? DEFAULT_SETTINGS.shippingFee,
+          freeShippingAbove: Number(data.free_shipping_above) ?? DEFAULT_SETTINGS.freeShippingAbove,
+        };
+        setSettings(loaded);
+        setForm(loaded);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch settings from database:", err);
+    }
+  }, [setSettings]);
 
   useEffect(() => {
     if (settings) {
@@ -754,8 +844,8 @@ function AdminAuthenticatedContent({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-display text-xl">{o?.id || "ORD-UNKNOWN"}</p>
-                        <Badge variant={o?.payment === "razorpay" ? "default" : "secondary"} className="rounded-full">
-                          {o?.payment === "razorpay" ? "Paid online" : "COD"}
+                        <Badge variant={o?.payment === "cashfree" || o?.payment === "razorpay" ? "default" : "secondary"} className="rounded-full">
+                          {o?.payment === "cashfree" ? "Paid online (Cashfree)" : o?.payment === "razorpay" ? "Paid online (Razorpay)" : "COD"}
                         </Badge>
                         <Badge variant="outline" className="rounded-full capitalize">{o?.status || "new"}</Badge>
                       </div>
@@ -837,65 +927,138 @@ function AdminAuthenticatedContent({
           </TabsContent>
 
           <TabsContent value="settings" className="mt-6">
-            <div className="max-w-xl space-y-4 rounded-3xl border bg-card p-6">
-              <div>
-                <Label>WhatsApp number (with country code, digits only)</Label>
-                <Input
-                  className="mt-1"
-                  value={form?.whatsappNumber ?? ""}
-                  onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), whatsappNumber: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Razorpay Key ID (rzp_live_… / rzp_test_…)</Label>
-                <Input
-                  className="mt-1"
-                  value={form?.razorpayKeyId ?? ""}
-                  onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), razorpayKeyId: e.target.value })}
-                />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Only the public Key ID goes here. Never paste your Razorpay secret key.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Shipping fee (₹)</Label>
-                  <Input
-                    type="number"
-                    className="mt-1"
-                    value={form?.shippingFee ?? 30}
-                    onChange={(e) =>
-                      setForm({ ...(form ?? DEFAULT_SETTINGS), shippingFee: Number(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Free shipping above (₹)</Label>
-                  <Input
-                    type="number"
-                    className="mt-1"
-                    value={form?.freeShippingAbove ?? 500}
-                    onChange={(e) =>
-                      setForm({ ...(form ?? DEFAULT_SETTINGS), freeShippingAbove: Number(e.target.value) || 0 })
-                    }
-                  />
-                </div>
-              </div>
-              <Button
-                className="rounded-full"
-                onClick={() => {
-                  if (form) {
-                    setSettings(form);
-                    toast.success("Settings saved");
-                  }
-                }}
-              >
-                <Save className="mr-1.5 h-4 w-4" /> Save settings
-              </Button>
-            </div>
+            <SettingsTabContent form={form} setForm={setForm} setSettings={setSettings} />
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function SettingsTabContent({
+  form,
+  setForm,
+  setSettings,
+}: {
+  form: Settings;
+  setForm: (s: Settings) => void;
+  setSettings: (s: Settings) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (supabase) {
+        const { error } = await supabase.from("settings").upsert({
+          id: "default",
+          whatsapp_number: (form.whatsappNumber ?? DEFAULT_SETTINGS.whatsappNumber).trim(),
+          cashfree_app_id: (form.cashfreeAppId ?? "").trim(),
+          cashfree_mode: form.cashfreeMode ?? "SANDBOX",
+          shipping_fee: Number(form.shippingFee) || 0,
+          free_shipping_above: Number(form.freeShippingAbove) || 0,
+          updated_at: new Date().toISOString(),
+        });
+
+        if (error) {
+          console.warn("Could not save to Supabase settings table:", error.message);
+        }
+      }
+
+      setSettings(form);
+      toast.success("Settings saved successfully");
+    } catch (err: any) {
+      console.error("Error saving settings:", err);
+      setSettings(form);
+      toast.success("Settings saved locally");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-xl space-y-5 rounded-3xl border bg-card p-6 shadow-xs">
+      <div>
+        <Label>WhatsApp number (with country code, digits only)</Label>
+        <Input
+          className="mt-1.5"
+          placeholder="917078718575"
+          value={form?.whatsappNumber ?? ""}
+          onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), whatsappNumber: e.target.value })}
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Orders and customer inquiries will be dispatched directly to this WhatsApp number.
+        </p>
+      </div>
+
+      <div>
+        <Label>Cashfree App ID (Client ID)</Label>
+        <Input
+          className="mt-1.5 font-mono text-sm"
+          placeholder="e.g. TEST103849... or YOUR_CASHFREE_APP_ID"
+          value={form?.cashfreeAppId ?? ""}
+          onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), cashfreeAppId: e.target.value })}
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          The public App ID from your Cashfree Merchant Dashboard. Never paste your Secret Key here.
+        </p>
+      </div>
+
+      <div>
+        <Label>Cashfree Environment</Label>
+        <div className="mt-1.5">
+          <Select
+            value={form?.cashfreeMode ?? "SANDBOX"}
+            onValueChange={(val: "SANDBOX" | "PRODUCTION") =>
+              setForm({ ...(form ?? DEFAULT_SETTINGS), cashfreeMode: val })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SANDBOX">SANDBOX (Test Mode)</SelectItem>
+              <SelectItem value="PRODUCTION">PRODUCTION (Live Mode)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Select SANDBOX for testing transactions, or PRODUCTION to collect real customer payments.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Shipping fee (₹)</Label>
+          <Input
+            type="number"
+            className="mt-1.5"
+            value={form?.shippingFee ?? 30}
+            onChange={(e) =>
+              setForm({ ...(form ?? DEFAULT_SETTINGS), shippingFee: Number(e.target.value) || 0 })
+            }
+          />
+        </div>
+        <div>
+          <Label>Free shipping above (₹)</Label>
+          <Input
+            type="number"
+            className="mt-1.5"
+            value={form?.freeShippingAbove ?? 500}
+            onChange={(e) =>
+              setForm({ ...(form ?? DEFAULT_SETTINGS), freeShippingAbove: Number(e.target.value) || 0 })
+            }
+          />
+        </div>
+      </div>
+
+      <Button
+        className="rounded-full mt-2"
+        disabled={saving}
+        onClick={() => void handleSave()}
+      >
+        <Save className="mr-1.5 h-4 w-4" /> {saving ? "Saving settings..." : "Save settings"}
+      </Button>
     </div>
   );
 }

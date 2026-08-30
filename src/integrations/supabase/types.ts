@@ -113,6 +113,39 @@ export type Database = {
         }
         Relationships: []
       }
+      settings: {
+        Row: {
+          cashfree_app_id: string
+          cashfree_mode: string
+          created_at: string
+          free_shipping_above: number
+          id: string
+          shipping_fee: number
+          updated_at: string
+          whatsapp_number: string
+        }
+        Insert: {
+          cashfree_app_id?: string
+          cashfree_mode?: string
+          created_at?: string
+          free_shipping_above?: number
+          id?: string
+          shipping_fee?: number
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Update: {
+          cashfree_app_id?: string
+          cashfree_mode?: string
+          created_at?: string
+          free_shipping_above?: number
+          id?: string
+          shipping_fee?: number
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

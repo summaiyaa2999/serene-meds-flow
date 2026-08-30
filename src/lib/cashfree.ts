@@ -54,13 +54,16 @@ export async function loadCashfreeScript(): Promise<void> {
 /**
  * Get initialized Cashfree SDK instance for checkout modal.
  */
-export async function getCashfreeInstance(mode?: "sandbox" | "production") {
+export async function getCashfreeInstance(mode?: "sandbox" | "production" | "SANDBOX" | "PRODUCTION") {
   await loadCashfreeScript();
-  const sdkMode =
+  const rawMode =
     mode ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CASHFREE_MODE === "production"
-      ? "production"
-      : "sandbox");
+    (typeof import.meta !== "undefined" && (import.meta.env?.VITE_CASHFREE_MODE || import.meta.env?.VITE_CASHFREE_ENV)) ||
+    (typeof process !== "undefined" && (process.env?.CASHFREE_ENV || process.env?.CASHFREE_MODE)) ||
+    "sandbox";
+
+  const sdkMode: "sandbox" | "production" =
+    String(rawMode).toLowerCase() === "production" ? "production" : "sandbox";
 
   if (typeof window.Cashfree !== "function") {
     throw new Error("Cashfree JS SDK is not available on window.");
@@ -77,29 +80,31 @@ export async function createCashfreeOrderSession(
   options?: {
     appId?: string;
     secretKey?: string;
-    mode?: "sandbox" | "production";
+    mode?: "sandbox" | "production" | "SANDBOX" | "PRODUCTION";
   }
 ): Promise<CashfreeOrderResponse> {
   const appId =
     options?.appId ??
     (typeof import.meta !== "undefined" ? import.meta.env?.VITE_CASHFREE_APP_ID : null) ??
-    (typeof process !== "undefined" ? process.env?.VITE_CASHFREE_APP_ID || process.env?.CASHFREE_APP_ID : null) ??
-    ((globalThis as any).Deno?.env?.get ? (globalThis as any).Deno.env.get("VITE_CASHFREE_APP_ID") : null);
+    (typeof process !== "undefined" ? process.env?.CASHFREE_APP_ID || process.env?.VITE_CASHFREE_APP_ID || process.env?.CASHFREE_CLIENT_ID : null) ??
+    ((globalThis as any).Deno?.env?.get ? (globalThis as any).Deno.env.get("CASHFREE_APP_ID") || (globalThis as any).Deno.env.get("VITE_CASHFREE_APP_ID") : null);
 
   const secretKey =
     options?.secretKey ??
-    (typeof process !== "undefined" ? process.env?.CASHFREE_SECRET_KEY : null) ??
+    (typeof process !== "undefined" ? process.env?.CASHFREE_SECRET_KEY || process.env?.VITE_CASHFREE_SECRET_KEY : null) ??
     ((globalThis as any).Deno?.env?.get ? (globalThis as any).Deno.env.get("CASHFREE_SECRET_KEY") : null);
 
-  const mode =
+  const rawMode =
     options?.mode ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CASHFREE_MODE === "production"
-      ? "production"
-      : "sandbox");
+    (typeof import.meta !== "undefined" && (import.meta.env?.VITE_CASHFREE_MODE || import.meta.env?.VITE_CASHFREE_ENV)) ||
+    (typeof process !== "undefined" && (process.env?.CASHFREE_ENV || process.env?.CASHFREE_MODE)) ||
+    "sandbox";
+
+  const mode = String(rawMode).toLowerCase() === "production" ? "production" : "sandbox";
 
   if (!appId || !secretKey) {
     throw new Error(
-      "Cashfree credentials missing. Set VITE_CASHFREE_APP_ID and CASHFREE_SECRET_KEY in environment variables."
+      "Cashfree credentials missing. Set CASHFREE_APP_ID (or VITE_CASHFREE_APP_ID) and CASHFREE_SECRET_KEY in environment variables."
     );
   }
 

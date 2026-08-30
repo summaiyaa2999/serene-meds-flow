@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { store, DEFAULT_SETTINGS, type CartLine, type Settings, type Order } from "@/lib/shop";
+import { supabase } from "@/integrations/supabase/client";
 
 function useStoreValue<T>(getter: () => T, initial: T) {
   // Start from a hydration-safe value; real (localStorage) value lands after mount.
@@ -21,6 +22,43 @@ function useStoreValue<T>(getter: () => T, initial: T) {
 
 export function useSettings() {
   const settings = useStoreValue<Settings>(store.getSettings, DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    let active = true;
+    async function syncFromDb() {
+      try {
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from("settings")
+          .select("*")
+          .eq("id", "default")
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Supabase settings sync notice:", error.message);
+          return;
+        }
+
+        if (data && active) {
+          const fresh: Settings = {
+            whatsappNumber: data.whatsapp_number || DEFAULT_SETTINGS.whatsappNumber,
+            cashfreeAppId: data.cashfree_app_id || "",
+            cashfreeMode: (data.cashfree_mode?.toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "SANDBOX") as "SANDBOX" | "PRODUCTION",
+            shippingFee: Number(data.shipping_fee) ?? DEFAULT_SETTINGS.shippingFee,
+            freeShippingAbove: Number(data.free_shipping_above) ?? DEFAULT_SETTINGS.freeShippingAbove,
+          };
+          store.setSettings(fresh);
+        }
+      } catch (err) {
+        console.warn("Could not sync settings from database:", err);
+      }
+    }
+    void syncFromDb();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return { settings, setSettings: store.setSettings };
 }
 

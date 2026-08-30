@@ -31,14 +31,15 @@ export type Order = {
   subtotal: number;
   shipping: number;
   total: number;
-  payment: "razorpay" | "cod";
+  payment: "cashfree" | "razorpay" | "cod";
   paymentId?: string;
   status: "new" | "packed" | "dispatched";
 };
 
 export type Settings = {
   whatsappNumber: string;
-  razorpayKeyId: string;
+  cashfreeAppId: string;
+  cashfreeMode: "SANDBOX" | "PRODUCTION";
   shippingFee: number;
   freeShippingAbove: number;
 };
@@ -47,7 +48,8 @@ export const WHATSAPP_NUMBER = "917078718575";
 
 export const DEFAULT_SETTINGS: Settings = {
   whatsappNumber: WHATSAPP_NUMBER,
-  razorpayKeyId: "",
+  cashfreeAppId: "",
+  cashfreeMode: "SANDBOX",
   shippingFee: 30,
   freeShippingAbove: 500,
 };
@@ -265,7 +267,7 @@ export function buildOrderMessage(order: Order) {
     `Shipping: ${order?.shipping === 0 ? "FREE" : inr(order?.shipping || 0)}`,
     `*TOTAL: ${inr(order?.total || 0)}*`,
     "",
-    `Payment: ${order?.payment === "razorpay" ? "PAID ONLINE (Razorpay)" : "CASH ON DELIVERY"}`,
+    `Payment: ${order?.payment === "cashfree" ? "PAID ONLINE (Cashfree)" : order?.payment === "razorpay" ? "PAID ONLINE (Razorpay)" : "CASH ON DELIVERY"}`,
     order?.paymentId ? `Payment ID: ${order.paymentId}` : "",
     "",
     "— Please print & paste this slip on the parcel.",

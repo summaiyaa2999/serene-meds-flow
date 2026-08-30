@@ -21,7 +21,6 @@ import {
   type Product,
 } from "@/lib/shop";
 import { openWhatsApp } from "@/lib/whatsapp";
-import { payWithRazorpay } from "@/lib/razorpay";
 import { getCashfreeInstance, createCashfreeOrderSession } from "@/lib/cashfree";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
@@ -223,76 +222,6 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
     openWhatsApp(shopkeeperPhone, formattedMessage);
   }
 
-  async function handleRazorpayOrder() {
-    if (!canCheckout) return toast.error("Product prices are still loading. Please wait a moment.");
-    if (!validateCustomer()) return;
-
-    setBusy(true);
-    try {
-      const { priced, sub, ship, grand } = await priceFromDatabase();
-
-      if (!settings.razorpayKeyId) {
-        return toast.error("Online payment is not configured yet. Add a Razorpay Key ID in the admin panel.");
-      }
-
-      const fullDeliveryAddress = `${customer.address.trim()}, ${customer.city.trim()} - ${customer.pincode.trim()}`;
-
-      const paymentId = await payWithRazorpay({
-        keyId: settings.razorpayKeyId,
-        amount: grand,
-        name: customer.name,
-        contact: customer.phone,
-        description: `Dawaiin order · ${priced.length} items`,
-      });
-
-      const generatedOrderNum = "ORD-" + Math.floor(1000 + Math.random() * 9000);
-
-      const { data: insertedOrder } = await supabase
-        .from("orders")
-        .insert({
-          order_number: generatedOrderNum,
-          customer_name: customer.name.trim(),
-          customer_phone: customer.phone.trim(),
-          delivery_address: fullDeliveryAddress,
-          items: priced.map((i) => ({ name: i.name, pack: i.pack, qty: i.qty, price: i.price })),
-          subtotal: sub,
-          shipping: ship,
-          total: grand,
-          status: "Paid Online (Razorpay)",
-        })
-        .select()
-        .single();
-
-      const orderId = insertedOrder?.order_number || generatedOrderNum;
-
-      const order: Order = {
-        id: orderId,
-        createdAt: new Date().toISOString(),
-        customer,
-        items: priced,
-        subtotal: sub,
-        shipping: ship,
-        total: grand,
-        payment: "razorpay",
-        paymentId,
-        status: "new",
-      };
-
-      setOrders([order, ...orders]);
-      const message = buildOrderMessage(order);
-      const number = settings.whatsappNumber || WHATSAPP_NUMBER;
-      await openWhatsApp(whatsappLinks(number, message));
-      clear();
-      setCustomer(EMPTY);
-      onOpenChange(false);
-      toast.success("Order placed successfully via Razorpay!");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleCashfreeOrder() {
     if (!canCheckout) return toast.error("Product prices are still loading. Please wait a moment.");
     if (!validateCustomer()) return;
@@ -322,18 +251,9 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
       const orderId = insertedOrder?.order_number || generatedOrderNum;
 
-      // Request Cashfree payment_session_id
+      // Request Cashfree payment_session_id from Supabase Edge Function create-cashfree-order
       let paymentSessionId = "";
       try {
-        const sessionRes = await createCashfreeOrderSession({
-          orderId,
-          amount: grand,
-          customerName: customer.name.trim(),
-          customerPhone: customer.phone.trim(),
-        });
-        paymentSessionId = sessionRes.payment_session_id;
-      } catch (sessionErr: any) {
-        // Fallback to Supabase Edge Function create-cashfree-order if available
         const { data: edgeData, error: edgeErr } = await supabase.functions.invoke("create-cashfree-order", {
           body: {
             orderId,
@@ -345,13 +265,34 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
         if (!edgeErr && edgeData?.payment_session_id) {
           paymentSessionId = edgeData.payment_session_id;
-        } else {
-          throw new Error(sessionErr?.message || edgeErr?.message || "Failed to create Cashfree order session.");
+        } else if (edgeErr) {
+          console.warn("Edge function create-cashfree-order error, attempting client helper fallback:", edgeErr);
+          const sessionRes = await createCashfreeOrderSession({
+            orderId,
+            amount: grand,
+            customerName: customer.name.trim(),
+            customerPhone: customer.phone.trim(),
+          });
+          paymentSessionId = sessionRes.payment_session_id;
         }
+      } catch (sessionErr: any) {
+        console.warn("Primary order session invocation failed:", sessionErr);
+        const sessionRes = await createCashfreeOrderSession({
+          orderId,
+          amount: grand,
+          customerName: customer.name.trim(),
+          customerPhone: customer.phone.trim(),
+        });
+        paymentSessionId = sessionRes.payment_session_id;
       }
 
-      // Initialize Cashfree Web Checkout modal
-      const cashfree = await getCashfreeInstance();
+      if (!paymentSessionId) {
+        throw new Error("Could not initialize Cashfree payment session. Please check server configuration.");
+      }
+
+      // Initialize Cashfree Web Checkout modal with configured mode
+      const sdkMode = settings.cashfreeMode === "PRODUCTION" ? "production" : "sandbox";
+      const cashfree = await getCashfreeInstance(sdkMode);
 
       const checkoutResult = await cashfree.checkout({
         paymentSessionId,
@@ -629,25 +570,13 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
               <Button
                 variant="default"
-                className="w-full rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-all"
+                className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all"
                 size="lg"
                 disabled={busy || !canCheckout}
                 onClick={() => void handleCashfreeOrder()}
               >
                 <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online (Cashfree)
               </Button>
-
-              {settings.razorpayKeyId ? (
-                <Button
-                  variant="outline"
-                  className="w-full rounded-full"
-                  size="lg"
-                  disabled={busy || !canCheckout}
-                  onClick={() => void handleRazorpayOrder()}
-                >
-                  <CreditCard className="mr-2 h-4 w-4" /> Pay {inr(total)} online (Razorpay)
-                </Button>
-              ) : null}
             </div>
 
             <p className="flex items-center justify-center gap-1.5 pt-1 text-center text-xs text-muted-foreground">

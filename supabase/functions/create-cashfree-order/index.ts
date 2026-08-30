@@ -3,7 +3,8 @@
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cashfree-signature, x-cashfree-timestamp",
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
 };
 
 Deno.serve(async (req: Request) => {
@@ -23,7 +24,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { orderId, amount, customerName, customerPhone, customerEmail, returnUrl } = body;
+    const { orderId, amount, customerName, customerPhone, customerEmail, returnUrl, mode: bodyMode, env: bodyEnv } = body;
 
     if (!orderId || !amount || !customerName || !customerPhone) {
       return new Response(
@@ -38,15 +39,27 @@ Deno.serve(async (req: Request) => {
     }
 
     const appId =
-      Deno.env.get("VITE_CASHFREE_APP_ID") ||
       Deno.env.get("CASHFREE_APP_ID") ||
+      Deno.env.get("VITE_CASHFREE_APP_ID") ||
       Deno.env.get("CASHFREE_CLIENT_ID");
 
-    const secretKey = Deno.env.get("CASHFREE_SECRET_KEY");
-    const mode = Deno.env.get("VITE_CASHFREE_MODE") || Deno.env.get("CASHFREE_MODE") || "sandbox";
+    const secretKey =
+      Deno.env.get("CASHFREE_SECRET_KEY") ||
+      Deno.env.get("VITE_CASHFREE_SECRET_KEY");
+
+    const rawEnv =
+      bodyEnv ||
+      bodyMode ||
+      Deno.env.get("CASHFREE_ENV") ||
+      Deno.env.get("CASHFREE_MODE") ||
+      Deno.env.get("VITE_CASHFREE_ENV") ||
+      Deno.env.get("VITE_CASHFREE_MODE") ||
+      "SANDBOX";
+
+    const isProduction = String(rawEnv).trim().toUpperCase() === "PRODUCTION";
 
     if (!appId || !secretKey) {
-      console.error("Missing Cashfree environment secrets (VITE_CASHFREE_APP_ID / CASHFREE_SECRET_KEY).");
+      console.error("Missing Cashfree environment secrets (CASHFREE_APP_ID / CASHFREE_SECRET_KEY).");
       return new Response(
         JSON.stringify({
           error: "Server configuration error: Cashfree API credentials missing.",
@@ -58,10 +71,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const baseUrl =
-      mode === "production"
-        ? "https://api.cashfree.com/pg/orders"
-        : "https://sandbox.cashfree.com/pg/orders";
+    const baseUrl = isProduction
+      ? "https://api.cashfree.com/pg/orders"
+      : "https://sandbox.cashfree.com/pg/orders";
 
     const cleanPhone = String(customerPhone).replace(/\D/g, "") || "9999999999";
     const customerId = `cust_${cleanPhone.slice(-10)}_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -120,10 +132,11 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Error in create-cashfree-order Edge Function:", err);
+    const errorMessage = err instanceof Error ? err.message : "Internal server error.";
     return new Response(
-      JSON.stringify({ error: err?.message || "Internal server error." }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
