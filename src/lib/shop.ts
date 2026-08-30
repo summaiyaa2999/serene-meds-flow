@@ -49,7 +49,7 @@ export const WHATSAPP_NUMBER = "917078718575";
 export const DEFAULT_SETTINGS: Settings = {
   whatsappNumber: WHATSAPP_NUMBER,
   cashfreeAppId: "",
-  cashfreeMode: "SANDBOX",
+  cashfreeMode: "PRODUCTION",
   shippingFee: 30,
   freeShippingAbove: 500,
 };

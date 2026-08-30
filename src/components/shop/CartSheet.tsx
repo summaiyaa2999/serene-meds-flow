@@ -290,8 +290,8 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
         throw new Error("Could not initialize Cashfree payment session. Please check server configuration.");
       }
 
-      // Initialize Cashfree Web Checkout modal with configured mode
-      const sdkMode = settings.cashfreeMode === "PRODUCTION" ? "production" : "sandbox";
+      // Initialize Cashfree Web Checkout modal with configured mode (defaults to production)
+      const sdkMode = settings.cashfreeMode === "SANDBOX" ? "sandbox" : "production";
       const cashfree = await getCashfreeInstance(sdkMode);
 
       const checkoutResult = await cashfree.checkout({

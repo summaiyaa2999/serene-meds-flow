@@ -43,7 +43,7 @@ export function useSettings() {
           const fresh: Settings = {
             whatsappNumber: data.whatsapp_number || DEFAULT_SETTINGS.whatsappNumber,
             cashfreeAppId: data.cashfree_app_id || "",
-            cashfreeMode: (data.cashfree_mode?.toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "SANDBOX") as "SANDBOX" | "PRODUCTION",
+            cashfreeMode: (data.cashfree_mode?.toUpperCase() === "SANDBOX" ? "SANDBOX" : "PRODUCTION") as "SANDBOX" | "PRODUCTION",
             shippingFee: Number(data.shipping_fee) ?? DEFAULT_SETTINGS.shippingFee,
             freeShippingAbove: Number(data.free_shipping_above) ?? DEFAULT_SETTINGS.freeShippingAbove,
           };

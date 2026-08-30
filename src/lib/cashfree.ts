@@ -60,10 +60,10 @@ export async function getCashfreeInstance(mode?: "sandbox" | "production" | "SAN
     mode ||
     (typeof import.meta !== "undefined" && (import.meta.env?.VITE_CASHFREE_MODE || import.meta.env?.VITE_CASHFREE_ENV)) ||
     (typeof process !== "undefined" && (process.env?.CASHFREE_ENV || process.env?.CASHFREE_MODE)) ||
-    "sandbox";
+    "production";
 
   const sdkMode: "sandbox" | "production" =
-    String(rawMode).toLowerCase() === "production" ? "production" : "sandbox";
+    String(rawMode).toLowerCase() === "sandbox" ? "sandbox" : "production";
 
   if (typeof window.Cashfree !== "function") {
     throw new Error("Cashfree JS SDK is not available on window.");
@@ -98,9 +98,9 @@ export async function createCashfreeOrderSession(
     options?.mode ||
     (typeof import.meta !== "undefined" && (import.meta.env?.VITE_CASHFREE_MODE || import.meta.env?.VITE_CASHFREE_ENV)) ||
     (typeof process !== "undefined" && (process.env?.CASHFREE_ENV || process.env?.CASHFREE_MODE)) ||
-    "sandbox";
+    "production";
 
-  const mode = String(rawMode).toLowerCase() === "production" ? "production" : "sandbox";
+  const mode = String(rawMode).toLowerCase() === "sandbox" ? "sandbox" : "production";
 
   if (!appId || !secretKey) {
     throw new Error(

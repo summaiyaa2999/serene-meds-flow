@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
   id text PRIMARY KEY DEFAULT 'default',
   whatsapp_number text NOT NULL DEFAULT '917078718575',
   cashfree_app_id text NOT NULL DEFAULT '',
-  cashfree_mode text NOT NULL DEFAULT 'SANDBOX',
+  cashfree_mode text NOT NULL DEFAULT 'PRODUCTION',
   shipping_fee numeric(10,2) NOT NULL DEFAULT 30,
   free_shipping_above numeric(10,2) NOT NULL DEFAULT 500,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
 
 -- Insert default row if not present
 INSERT INTO public.settings (id, whatsapp_number, cashfree_app_id, cashfree_mode, shipping_fee, free_shipping_above)
-VALUES ('default', '917078718575', '', 'SANDBOX', 30, 500)
+VALUES ('default', '917078718575', '', 'PRODUCTION', 30, 500)
 ON CONFLICT (id) DO NOTHING;
 
 GRANT SELECT ON public.settings TO anon;

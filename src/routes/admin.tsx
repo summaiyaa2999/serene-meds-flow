@@ -482,7 +482,7 @@ function Admin() {
         const loaded: Settings = {
           whatsappNumber: data.whatsapp_number || DEFAULT_SETTINGS.whatsappNumber,
           cashfreeAppId: data.cashfree_app_id || "",
-          cashfreeMode: (data.cashfree_mode?.toUpperCase() === "PRODUCTION" ? "PRODUCTION" : "SANDBOX") as "SANDBOX" | "PRODUCTION",
+          cashfreeMode: (data.cashfree_mode?.toUpperCase() === "SANDBOX" ? "SANDBOX" : "PRODUCTION") as "SANDBOX" | "PRODUCTION",
           shippingFee: Number(data.shipping_fee) ?? DEFAULT_SETTINGS.shippingFee,
           freeShippingAbove: Number(data.free_shipping_above) ?? DEFAULT_SETTINGS.freeShippingAbove,
         };
@@ -954,7 +954,7 @@ function SettingsTabContent({
           id: "default",
           whatsapp_number: (form.whatsappNumber ?? DEFAULT_SETTINGS.whatsappNumber).trim(),
           cashfree_app_id: (form.cashfreeAppId ?? "").trim(),
-          cashfree_mode: form.cashfreeMode ?? "SANDBOX",
+          cashfree_mode: form.cashfreeMode ?? "PRODUCTION",
           shipping_fee: Number(form.shippingFee) || 0,
           free_shipping_above: Number(form.freeShippingAbove) || 0,
           updated_at: new Date().toISOString(),
@@ -995,7 +995,7 @@ function SettingsTabContent({
         <Label>Cashfree App ID (Client ID)</Label>
         <Input
           className="mt-1.5 font-mono text-sm"
-          placeholder="e.g. TEST103849... or YOUR_CASHFREE_APP_ID"
+          placeholder="e.g. YOUR_LIVE_CASHFREE_APP_ID"
           value={form?.cashfreeAppId ?? ""}
           onChange={(e) => setForm({ ...(form ?? DEFAULT_SETTINGS), cashfreeAppId: e.target.value })}
         />
@@ -1008,7 +1008,7 @@ function SettingsTabContent({
         <Label>Cashfree Environment</Label>
         <div className="mt-1.5">
           <Select
-            value={form?.cashfreeMode ?? "SANDBOX"}
+            value={form?.cashfreeMode ?? "PRODUCTION"}
             onValueChange={(val: "SANDBOX" | "PRODUCTION") =>
               setForm({ ...(form ?? DEFAULT_SETTINGS), cashfreeMode: val })
             }
@@ -1017,13 +1017,13 @@ function SettingsTabContent({
               <SelectValue placeholder="Select mode" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="SANDBOX">SANDBOX (Test Mode)</SelectItem>
               <SelectItem value="PRODUCTION">PRODUCTION (Live Mode)</SelectItem>
+              <SelectItem value="SANDBOX">SANDBOX (Test Mode)</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Select SANDBOX for testing transactions, or PRODUCTION to collect real customer payments.
+          PRODUCTION mode routes transactions directly to Cashfree live servers for real customer payments.
         </p>
       </div>
 

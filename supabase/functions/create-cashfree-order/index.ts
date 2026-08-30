@@ -54,9 +54,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("CASHFREE_MODE") ||
       Deno.env.get("VITE_CASHFREE_ENV") ||
       Deno.env.get("VITE_CASHFREE_MODE") ||
-      "SANDBOX";
+      "PRODUCTION";
 
-    const isProduction = String(rawEnv).trim().toUpperCase() === "PRODUCTION";
+    const isProduction = String(rawEnv).trim().toUpperCase() !== "SANDBOX";
 
     if (!appId || !secretKey) {
       console.error("Missing Cashfree environment secrets (CASHFREE_APP_ID / CASHFREE_SECRET_KEY).");
