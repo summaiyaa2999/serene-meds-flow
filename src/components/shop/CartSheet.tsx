@@ -21,7 +21,7 @@ import {
   type Product,
 } from "@/lib/shop";
 import { openWhatsApp } from "@/lib/whatsapp";
-import { getCashfreeInstance, createCashfreeOrderSession } from "@/lib/cashfree";
+import { getCashfreeInstance } from "@/lib/cashfree";
 
 const EMPTY: Customer = { name: "", phone: "", address: "", city: "", pincode: "", notes: "" };
 
@@ -251,44 +251,32 @@ export function CartSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
 
       const orderId = insertedOrder?.order_number || generatedOrderNum;
 
-      // Request Cashfree payment_session_id from Supabase Edge Function create-cashfree-order
-      let paymentSessionId = "";
-      try {
-        const { data: edgeData, error: edgeErr } = await supabase.functions.invoke("create-cashfree-order", {
-          body: {
-            orderId,
-            amount: grand,
-            customerName: customer.name.trim(),
-            customerPhone: customer.phone.trim(),
-          },
-        });
-
-        if (!edgeErr && edgeData?.payment_session_id) {
-          paymentSessionId = edgeData.payment_session_id;
-        } else if (edgeErr) {
-          console.warn("Edge function create-cashfree-order error, attempting client helper fallback:", edgeErr);
-          const sessionRes = await createCashfreeOrderSession({
-            orderId,
-            amount: grand,
-            customerName: customer.name.trim(),
-            customerPhone: customer.phone.trim(),
-          });
-          paymentSessionId = sessionRes.payment_session_id;
-        }
-      } catch (sessionErr: any) {
-        console.warn("Primary order session invocation failed:", sessionErr);
-        const sessionRes = await createCashfreeOrderSession({
+      // Request Cashfree payment_session_id strictly via Supabase Edge Function create-cashfree-order
+      const { data: edgeData, error: edgeErr } = await supabase.functions.invoke("create-cashfree-order", {
+        body: {
           orderId,
           amount: grand,
           customerName: customer.name.trim(),
           customerPhone: customer.phone.trim(),
-        });
-        paymentSessionId = sessionRes.payment_session_id;
+          customerEmail: `${customer.phone.replace(/\D/g, "").slice(-10)}@dawaiin.com`,
+          returnUrl: typeof window !== "undefined" ? `${window.location.origin}/?order_id=${encodeURIComponent(orderId)}` : undefined,
+          appId: settings.cashfreeAppId || undefined,
+          mode: settings.cashfreeMode === "SANDBOX" ? "SANDBOX" : "PRODUCTION",
+        },
+      });
+
+      if (edgeErr) {
+        console.error("Edge function create-cashfree-order invocation error:", edgeErr);
+        const serverError = edgeData?.error || edgeErr.message || "Failed to create Cashfree payment session.";
+        throw new Error(serverError);
       }
 
-      if (!paymentSessionId) {
-        throw new Error("Could not initialize Cashfree payment session. Please check server configuration.");
+      if (!edgeData?.payment_session_id) {
+        const errorMsg = edgeData?.error || "Could not generate Cashfree payment session. Please verify Edge Function configuration.";
+        throw new Error(errorMsg);
       }
+
+      const paymentSessionId = edgeData.payment_session_id;
 
       // Initialize Cashfree Web Checkout modal with configured mode (defaults to production)
       const sdkMode = settings.cashfreeMode === "SANDBOX" ? "sandbox" : "production";

@@ -41,7 +41,8 @@ Deno.serve(async (req: Request) => {
     const appId =
       Deno.env.get("CASHFREE_APP_ID") ||
       Deno.env.get("VITE_CASHFREE_APP_ID") ||
-      Deno.env.get("CASHFREE_CLIENT_ID");
+      Deno.env.get("CASHFREE_CLIENT_ID") ||
+      body.appId;
 
     const secretKey =
       Deno.env.get("CASHFREE_SECRET_KEY") ||
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request) => {
       console.error("Missing Cashfree environment secrets (CASHFREE_APP_ID / CASHFREE_SECRET_KEY).");
       return new Response(
         JSON.stringify({
-          error: "Server configuration error: Cashfree API credentials missing.",
+          error: "Cashfree API credentials missing on server. Please set CASHFREE_APP_ID and CASHFREE_SECRET_KEY in your Supabase Edge Function secrets.",
         }),
         {
           status: 500,
